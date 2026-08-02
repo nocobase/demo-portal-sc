@@ -1,9 +1,10 @@
 import { useGetLocale } from "@refinedev/core";
 import {
   Bot,
+  Check,
   ChevronDown,
   Clock,
-  Download,
+  Copy,
   KeyRound,
   Sparkles,
 } from "lucide-react";
@@ -97,6 +98,12 @@ const T = {
     en: "Downloadable · agent-editable",
     zh: "可下载 · Agent 可改",
   },
+  copyPrompt: { en: "Copy agent prompt", zh: "复制 Agent 提示词" },
+  promptCopied: { en: "Copied!", zh: "已复制" },
+  copyPromptHint: {
+    en: "Copy a ready-to-paste prompt for your own coding agent",
+    zh: "复制一段提示词,粘贴到你自己的编码 agent 里继续开发",
+  },
   showTimeline: { en: "See how it was built", zh: "查看构建过程" },
   hideTimeline: { en: "Hide build timeline", zh: "收起构建过程" },
   showRoles: { en: "Roles & demo logins", zh: "角色与体验账号" },
@@ -106,6 +113,119 @@ const T = {
   account: { en: "Demo account", zh: "体验账号" },
   password: { en: "Password", zh: "密码" },
 };
+
+// --- "Copy agent prompt" ------------------------------------------------
+// Hands the visitor a ready-to-paste briefing for their own coding agent:
+// where this app lives, how to connect the nb CLI to it, and which commands
+// pull / run / ship the source. Everything host-related is derived at runtime
+// (origin + Vite base) so the same build works on any domain.
+
+const APP_TITLE = "Stock Control";
+const PORTAL_NAME_FALLBACK = "sc";
+
+function portalName() {
+  const segments = String(import.meta.env.BASE_URL || "/")
+    .split("/")
+    .filter(Boolean);
+  return segments[segments.length - 1] || PORTAL_NAME_FALLBACK;
+}
+
+// English only — the prompt is meant to be pasted into a coding agent.
+function buildAgentPrompt() {
+  const origin = window.location.origin;
+  const portal = portalName();
+  const liveUrl = new URL(import.meta.env.BASE_URL || "/", origin).href;
+  const apiBase = `${origin}/api`;
+
+  return [
+    "I want to customize this NocoBase AI Portal app with my own coding agent.",
+    "",
+    `App: ${APP_TITLE}`,
+    `Live URL: ${liveUrl}`,
+    `NocoBase API base: ${apiBase}`,
+    `Portal name: ${portal}`,
+    "",
+    "Setup:",
+    "1. Install the NocoBase CLI (the Portal commands ship in the 3.0 alpha channel):",
+    "     npm i -g @nocobase/cli@alpha        # gives you the `nb` command",
+    "2. Connect the CLI to this instance:",
+    `     nb env add mydemo --api-base-url ${apiBase} --auth-type token --access-token <YOUR_TOKEN>`,
+    "   Create the token in the NocoBase admin UI (Settings -> API keys). Or use",
+    `     nb env add mydemo --api-base-url ${apiBase} --auth-type oauth`,
+    "   and finish the browser login with `nb env auth mydemo`.",
+    "3. Install the NocoBase agent skills:",
+    "     nb skills install --yes             # already installed? use `nb skills update --yes`",
+    "   That gives your agent the nocobase-portal-manage, nocobase-ai-builder,",
+    "   nocobase-data-modeling, nocobase-workflow-manage and nocobase-acl-manage skills.",
+    "4. Pull this portal's source code:",
+    `     nb portal pull ${portal} -e mydemo`,
+    "5. Run it locally against this instance:",
+    `     nb portal dev ${portal} -e mydemo`,
+    "6. Ship your changes back:",
+    `     nb portal push ${portal} -e mydemo -m "my changes"`,
+    `     nb portal deploy ${portal} -e mydemo`,
+    "",
+    'This is an "AI Portal": the whole UI is React source code that I own, not no-code config.',
+    "Load the `nocobase-portal-manage` skill first — it routes to `nocobase-ai-builder` for source work.",
+    "",
+    "What I want to change: <describe your change here>",
+  ].join("\n");
+}
+
+async function copyToClipboard(text: string) {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    // Clipboard API can reject on insecure origins / denied permission.
+  }
+  try {
+    const area = document.createElement("textarea");
+    area.value = text;
+    area.setAttribute("readonly", "");
+    area.style.position = "fixed";
+    area.style.top = "0";
+    area.style.opacity = "0";
+    document.body.appendChild(area);
+    area.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(area);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
+function CopyPromptButton({ t }: { t: (b: BiText) => string }) {
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (!copied) return;
+    const id = setTimeout(() => setCopied(false), 2000);
+    return () => clearTimeout(id);
+  }, [copied]);
+
+  return (
+    <button
+      type="button"
+      onClick={async () => {
+        if (await copyToClipboard(buildAgentPrompt())) setCopied(true);
+      }}
+      title={t(T.copyPromptHint)}
+      className={cn(
+        "ml-auto inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px] font-medium transition-colors",
+        copied
+          ? "border-primary/40 bg-primary/10 text-primary"
+          : "border-border/70 bg-background/60 text-muted-foreground hover:border-primary/40 hover:text-foreground"
+      )}
+    >
+      {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
+      {copied ? t(T.promptCopied) : t(T.copyPrompt)}
+    </button>
+  );
+}
 
 export function BuildStoryBanner({ story }: { story: BuildStory }) {
   const zh = useZh();
@@ -156,10 +276,7 @@ export function BuildStoryBanner({ story }: { story: BuildStory }) {
               <ModelPill key={m} model={m} />
             ))}
           </div>
-          <span className="ml-auto inline-flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-[11px] font-medium text-muted-foreground">
-            <Download className="size-3" />
-            {t(T.downloadable)}
-          </span>
+          <CopyPromptButton t={t} />
         </div>
 
         {/* toggles */}
