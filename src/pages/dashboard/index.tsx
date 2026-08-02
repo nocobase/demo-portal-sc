@@ -24,12 +24,70 @@ import {
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  BuildStoryBanner,
+  type BuildStory,
+} from "@/components/build-story/build-story-banner";
 import { AIEmployeeShortcut } from "@/extensions/nocobase-ai/components";
 import type { AIEmployeeTask } from "@/extensions/nocobase-ai/providers";
 import { nocobaseClient } from "@nocobase/portal-sdk/client";
 import { useAIPageElementHandle } from "@/lib/inventory/ai-handle";
 import { formatCurrency, formatNumber } from "@/lib/inventory/format";
 import type { ProductRecord } from "@/lib/inventory/types";
+
+const BUILD_STORY: BuildStory = {
+  models: ["DeepSeek V4 Flash 0731"],
+  intro: {
+    en: "Inventory management — products, stock, suppliers, movements, counts.",
+    zh: "库存管理 —— 商品、库存、供应商、出入库、盘点。",
+  },
+  tracks: [
+    {
+      label: {
+        en: "Data model — products, stock, suppliers",
+        zh: "数据建模 — 商品/库存/供应商",
+      },
+      models: ["DeepSeek V4 Flash 0731"],
+      start: 0,
+      minutes: 12,
+    },
+    {
+      label: {
+        en: "Pages — dashboard, goods, stock, counts",
+        zh: "页面 — 工作台/商品/库存/盘点",
+      },
+      models: ["DeepSeek V4 Flash 0731"],
+      start: 12,
+      minutes: 22,
+    },
+    {
+      label: { en: "Wire-up & polish", zh: "联调与打磨" },
+      models: ["DeepSeek V4 Flash 0731"],
+      start: 34,
+      minutes: 11,
+    },
+  ],
+  roles: [
+    {
+      name: { en: "Warehouse Operator", zh: "Warehouse Operator" },
+      can: { en: "Products, stock, suppliers", zh: "商品、库存、供应商" },
+      account: "warehouse_demo@scm.demo",
+      password: "demo123456",
+    },
+    {
+      name: { en: "Stocktaker", zh: "Stocktaker" },
+      can: { en: "Inventory counts & items", zh: "盘点单与明细" },
+      account: "stocktaker_demo@scm.demo",
+      password: "demo123456",
+    },
+    {
+      name: { en: "Viewer", zh: "Viewer" },
+      can: { en: "Read-only across the app", zh: "全应用只读" },
+      account: "viewer_demo@scm.demo",
+      password: "demo123456",
+    },
+  ],
+};
 
 type KpiProps = {
   label: string;
@@ -237,6 +295,7 @@ export const DashboardPage = () => {
 
   return (
     <div ref={pageElement.ref} className="animate-page-enter flex flex-col gap-6">
+      <BuildStoryBanner story={BUILD_STORY} />
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 className="text-3xl font-semibold tracking-[-0.035em]">
