@@ -3,13 +3,16 @@ import { starter as enUSStarter } from "./en-US";
 import { starter as zhCNStarter } from "./zh-CN";
 import { inv as enUSInv } from "./inv/en-US";
 import { inv as zhCNInv } from "./inv/zh-CN";
+import { additionalTranslations } from "./generated";
 
 registerTranslationResources("starter", {
   "en-US": enUSStarter,
   "zh-CN": zhCNStarter,
+  ...(additionalTranslations["starter"] ?? {}),
 });
 
 registerTranslationResources("inv", {
   "en-US": enUSInv,
   "zh-CN": zhCNInv,
+  ...(additionalTranslations["inv"] ?? {}),
 });
