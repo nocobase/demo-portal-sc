@@ -3,6 +3,8 @@ import { useForm } from "@refinedev/react-hook-form";
 import { useMemo } from "react";
 import { useRouteSurfaceClose } from "@nocobase/portal-sdk/routing";
 
+import { AccessDenied } from "@/components/access-control/access-denied";
+import { CanAccess } from "@/components/access-control/can-access";
 import { Button } from "@/components/ui/button";
 import { Form } from "@/components/ui/form";
 import { useAIForm, type AIFormField } from "./optional-ai";
@@ -138,5 +140,13 @@ function UserCreateForm() {
         </RouteDrawerFooter>
       </form>
     </Form>
+  );
+}
+
+export default function UserCreateRoute() {
+  return (
+    <CanAccess resource="users" action="create" fallback={<AccessDenied />}>
+      <UserCreate />
+    </CanAccess>
   );
 }

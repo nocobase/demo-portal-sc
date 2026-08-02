@@ -4,6 +4,8 @@ import { useMemo } from "react";
 import { useParams } from "react-router";
 import { useRouteSurfaceClose } from "@nocobase/portal-sdk/routing";
 
+import { AccessDenied } from "@/components/access-control/access-denied";
+import { CanAccess } from "@/components/access-control/can-access";
 import { Button } from "@/components/ui/button";
 import { Form } from "@/components/ui/form";
 import { useAIForm, type AIFormField } from "./optional-ai";
@@ -134,5 +136,21 @@ function UserEditForm({ id }: { id?: string }) {
         </RouteDrawerFooter>
       </form>
     </Form>
+  );
+}
+
+export default function UserEditRoute() {
+  return (
+    <CanAccess resource="users" action="edit" fallback={<AccessDenied />}>
+      <UserEdit />
+    </CanAccess>
+  );
+}
+
+export function UserShowEditRoute() {
+  return (
+    <CanAccess resource="users" action="edit" fallback={<AccessDenied />}>
+      <UserEdit returnTo="show" />
+    </CanAccess>
   );
 }

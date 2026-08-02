@@ -5,6 +5,8 @@ import { Eye, Pencil, Trash2 } from "lucide-react";
 import { useCallback, useMemo, type ReactNode } from "react";
 import { useNavigate } from "react-router";
 
+import { AccessDenied } from "@/components/access-control/access-denied";
+import { CanAccess } from "@/components/access-control/can-access";
 import { DataTable } from "@/components/data-table/data-table";
 import {
   DataTableFilterCombobox,
@@ -329,3 +331,11 @@ export const UserList = () => {
     </ListView>
   );
 };
+
+export default function UserListRoute() {
+  return (
+    <CanAccess resource="users" action="list" fallback={<AccessDenied />}>
+      <UserList />
+    </CanAccess>
+  );
+}

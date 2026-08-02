@@ -5,7 +5,7 @@ import "./locales";
 const usersExampleExtension: AppExtension = {
   id: "nocobase-users-example",
   priority: 0,
-  appRoutes: usersExampleRoutes,
+  routes: usersExampleRoutes,
 };
 
 export default usersExampleExtension;

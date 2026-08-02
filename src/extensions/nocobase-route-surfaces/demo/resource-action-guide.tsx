@@ -4,20 +4,21 @@ const overlayExample = `export const appRoutes = defineAppRoutes([
   {
     name: "scm_customers",
     path: "scm_customers",
-    element: <CustomerList />,
+    lazy: () => import("./customers/list"),
     resource: { meta: { label: "Customers" } },
     children: [
       {
         name: "customers.create",
         path: "create",
         resourceAction: "create",
-        element: <CustomerCreateRoute />,
+        lazy: () => import("./customers/create-route"),
       },
     ],
   },
 ]);
 
-function CustomerCreateRoute() {
+// ./customers/create-route.tsx
+export default function CustomerCreateRoute() {
   return (
     <RouteDrawer
       title="Create customer"
@@ -46,7 +47,7 @@ export const appRoutes = defineAppRoutes([
         name: "customers.create",
         path: "create",
         resourceAction: "create",
-        element: <CustomerCreatePage />,
+        lazy: () => import("./customers/create-page"),
       },
     ],
   },
@@ -56,7 +57,7 @@ const contextualExample = `export const appRoutes = defineAppRoutes([
   {
     name: "scm_customers",
     path: "scm_customers",
-    element: <CustomerList />,
+    lazy: () => import("./customers/list"),
     resource: { meta: { label: "Customers" } },
     children: [
       // These are contextual child routes. They stay under the host page.
@@ -64,25 +65,25 @@ const contextualExample = `export const appRoutes = defineAppRoutes([
         name: "customers.create",
         path: "create",
         resourceAction: "create",
-        element: <CustomerCreateRoute returnTo="list" />,
+        lazy: () => import("./customers/create-route"),
       },
       {
         name: "customers.edit",
         path: "edit/:id",
         resourceAction: "edit",
-        element: <CustomerEditRoute returnTo="list" />,
+        lazy: () => import("./customers/edit-route"),
       },
       {
         name: "customers.show",
         path: "show/:id",
         resourceAction: "show",
-        element: <CustomerShowRoute />,
+        lazy: () => import("./customers/show-route"),
         children: [
           {
             name: "customers.show.edit",
             path: "edit",
             // Contextual duplicate: do not register a second resourceAction.
-            element: <CustomerEditRoute returnTo="show" />,
+            lazy: () => import("./customers/show-edit-route"),
           },
         ],
       },
@@ -103,10 +104,11 @@ export function ResourceActionGuide() {
           Refine resource actions
         </h2>
         <p className="max-w-3xl text-sm text-muted-foreground">
-          <code>resourceAction</code> registers the action URL. The route element
-          still decides whether that URL opens an overlay or replaces the list.
-          Add ACL and unsaved-change handling as shown in the installed Users
-          example.
+          <code>resourceAction</code> registers the action URL. The resolved route
+          component still decides whether that URL opens an overlay or replaces
+          the list. Load page modules through the route&apos;s <code>lazy</code> field,
+          and add ACL and unsaved-change handling as shown in the installed
+          Users example.
         </p>
       </div>
       <div className="grid gap-4 xl:grid-cols-3">

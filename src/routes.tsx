@@ -7,50 +7,23 @@ import {
   Tags,
   Truck,
 } from "lucide-react";
+import type { ComponentType } from "react";
 
 import { defineAppRoutes } from "@nocobase/portal-sdk/routing";
-import { AccessDenied } from "@/components/access-control/access-denied";
-import { CanAccess } from "@/components/access-control/can-access";
-import { DashboardPage } from "@/pages/dashboard";
-import { StockAlertsPage } from "@/pages/stock-alerts";
-import { CategoryCreate } from "@/pages/categories/create";
-import { CategoryEdit } from "@/pages/categories/edit";
-import { CategoryList } from "@/pages/categories/list";
-import { CategoryShow } from "@/pages/categories/show";
-import { InventoryCountCreate } from "@/pages/inventory-counts/create";
-import { InventoryCountList } from "@/pages/inventory-counts/list";
-import { InventoryCountShow } from "@/pages/inventory-counts/show";
-import { ProductCreate } from "@/pages/products/create";
-import { ProductEdit } from "@/pages/products/edit";
-import { ProductList } from "@/pages/products/list";
-import { ProductShow } from "@/pages/products/show";
-import { StockMovementCreate } from "@/pages/stock-movements/create";
-import { StockMovementList } from "@/pages/stock-movements/list";
-import { StockMovementShow } from "@/pages/stock-movements/show";
-import {
-  StockMovementProductEdit,
-  StockMovementProductShow,
-} from "@/pages/stock-movements/product-from-show";
-import { SupplierCreate } from "@/pages/suppliers/create";
-import { SupplierEdit } from "@/pages/suppliers/edit";
-import { SupplierList } from "@/pages/suppliers/list";
-import { SupplierShow } from "@/pages/suppliers/show";
 
 // The starter no longer needs the example routes contributed by installed
 // Registry extensions. Providers, adapters, and the /dev showcase remain.
 export const registryRoutesEnabled = false;
 
-const routeGuarded = (resource: string, action: string, node: React.ReactNode) => (
-  <CanAccess resource={resource} action={action} fallback={<AccessDenied />}>
-    {node}
-  </CanAccess>
-);
+const routeComponent = <T extends ComponentType>(component: T) => ({
+  default: component,
+});
 
 export const appRoutes = defineAppRoutes([
   {
     name: "dashboard",
     path: "/dashboard",
-    element: <DashboardPage />,
+    lazy: () => import("@/pages/dashboard/route"),
     resource: {
       meta: {
         label: "Dashboard",
@@ -79,7 +52,10 @@ export const appRoutes = defineAppRoutes([
       {
         name: "scm_products",
         path: "products",
-        element: routeGuarded("scm_products", "list", <ProductList />),
+        lazy: () =>
+          import("@/pages/products/route-components").then(
+            ({ ProductListRoute }) => routeComponent(ProductListRoute)
+          ),
         resource: {
           meta: {
             label: "Product",
@@ -100,28 +76,37 @@ export const appRoutes = defineAppRoutes([
             name: "products.create",
             path: "create",
             resourceAction: "create",
-            element: routeGuarded("scm_products", "create", <ProductCreate />),
+            lazy: () =>
+              import("@/pages/products/route-components").then(
+                ({ ProductCreateRoute }) => routeComponent(ProductCreateRoute)
+              ),
           },
           {
             name: "products.edit",
             path: "edit/:id",
             resourceAction: "edit",
-            element: routeGuarded("scm_products", "update", <ProductEdit />),
+            lazy: () =>
+              import("@/pages/products/route-components").then(
+                ({ ProductEditRoute }) => routeComponent(ProductEditRoute)
+              ),
           },
           {
             name: "products.show",
             path: "show/:id",
             resourceAction: "show",
-            element: routeGuarded("scm_products", "view", <ProductShow />),
+            lazy: () =>
+              import("@/pages/products/route-components").then(
+                ({ ProductShowRoute }) => routeComponent(ProductShowRoute)
+              ),
             children: [
               {
                 name: "products.show.edit",
                 path: "edit",
-                element: routeGuarded(
-                  "products",
-                  "update",
-                  <ProductEdit returnTo="show" />
-                ),
+                lazy: () =>
+                  import("@/pages/products/route-components").then(
+                    ({ ProductShowEditRoute }) =>
+                      routeComponent(ProductShowEditRoute)
+                  ),
               },
             ],
           },
@@ -130,11 +115,10 @@ export const appRoutes = defineAppRoutes([
       {
         name: "scm_product_categories",
         path: "categories",
-        element: routeGuarded(
-          "product_categories",
-          "list",
-          <CategoryList />
-        ),
+        lazy: () =>
+          import("@/pages/categories/route-components").then(
+            ({ CategoryListRoute }) => routeComponent(CategoryListRoute)
+          ),
         resource: {
           meta: {
             label: "Categories",
@@ -155,40 +139,37 @@ export const appRoutes = defineAppRoutes([
             name: "product_categories.create",
             path: "create",
             resourceAction: "create",
-            element: routeGuarded(
-              "product_categories",
-              "create",
-              <CategoryCreate />
-            ),
+            lazy: () =>
+              import("@/pages/categories/route-components").then(
+                ({ CategoryCreateRoute }) => routeComponent(CategoryCreateRoute)
+              ),
           },
           {
             name: "product_categories.edit",
             path: "edit/:id",
             resourceAction: "edit",
-            element: routeGuarded(
-              "product_categories",
-              "update",
-              <CategoryEdit />
-            ),
+            lazy: () =>
+              import("@/pages/categories/route-components").then(
+                ({ CategoryEditRoute }) => routeComponent(CategoryEditRoute)
+              ),
           },
           {
             name: "product_categories.show",
             path: "show/:id",
             resourceAction: "show",
-            element: routeGuarded(
-              "product_categories",
-              "view",
-              <CategoryShow />
-            ),
+            lazy: () =>
+              import("@/pages/categories/route-components").then(
+                ({ CategoryShowRoute }) => routeComponent(CategoryShowRoute)
+              ),
             children: [
               {
                 name: "product_categories.show.edit",
                 path: "edit",
-                element: routeGuarded(
-                  "product_categories",
-                  "update",
-                  <CategoryEdit returnTo="show" />
-                ),
+                lazy: () =>
+                  import("@/pages/categories/route-components").then(
+                    ({ CategoryShowEditRoute }) =>
+                      routeComponent(CategoryShowEditRoute)
+                  ),
               },
             ],
           },
@@ -197,7 +178,10 @@ export const appRoutes = defineAppRoutes([
       {
         name: "scm_suppliers",
         path: "suppliers",
-        element: routeGuarded("scm_suppliers", "list", <SupplierList />),
+        lazy: () =>
+          import("@/pages/suppliers/route-components").then(
+            ({ SupplierListRoute }) => routeComponent(SupplierListRoute)
+          ),
         resource: {
           meta: {
             label: "Suppliers",
@@ -218,28 +202,37 @@ export const appRoutes = defineAppRoutes([
             name: "suppliers.create",
             path: "create",
             resourceAction: "create",
-            element: routeGuarded("scm_suppliers", "create", <SupplierCreate />),
+            lazy: () =>
+              import("@/pages/suppliers/route-components").then(
+                ({ SupplierCreateRoute }) => routeComponent(SupplierCreateRoute)
+              ),
           },
           {
             name: "suppliers.edit",
             path: "edit/:id",
             resourceAction: "edit",
-            element: routeGuarded("scm_suppliers", "update", <SupplierEdit />),
+            lazy: () =>
+              import("@/pages/suppliers/route-components").then(
+                ({ SupplierEditRoute }) => routeComponent(SupplierEditRoute)
+              ),
           },
           {
             name: "suppliers.show",
             path: "show/:id",
             resourceAction: "show",
-            element: routeGuarded("scm_suppliers", "view", <SupplierShow />),
+            lazy: () =>
+              import("@/pages/suppliers/route-components").then(
+                ({ SupplierShowRoute }) => routeComponent(SupplierShowRoute)
+              ),
             children: [
               {
                 name: "suppliers.show.edit",
                 path: "edit",
-                element: routeGuarded(
-                  "suppliers",
-                  "update",
-                  <SupplierEdit returnTo="show" />
-                ),
+                lazy: () =>
+                  import("@/pages/suppliers/route-components").then(
+                    ({ SupplierShowEditRoute }) =>
+                      routeComponent(SupplierShowEditRoute)
+                  ),
               },
             ],
           },
@@ -263,11 +256,11 @@ export const appRoutes = defineAppRoutes([
       {
         name: "scm_stock_movements",
         path: "movements",
-        element: routeGuarded(
-          "stock_movements",
-          "list",
-          <StockMovementList />
-        ),
+        lazy: () =>
+          import("@/pages/stock-movements/route-components").then(
+            ({ StockMovementListRoute }) =>
+              routeComponent(StockMovementListRoute)
+          ),
         resource: {
           meta: {
             label: "Stock Movements",
@@ -288,39 +281,39 @@ export const appRoutes = defineAppRoutes([
             name: "stock_movements.create",
             path: "create",
             resourceAction: "create",
-            element: routeGuarded(
-              "stock_movements",
-              "create",
-              <StockMovementCreate />
-            ),
+            lazy: () =>
+              import("@/pages/stock-movements/route-components").then(
+                ({ StockMovementCreateRoute }) =>
+                  routeComponent(StockMovementCreateRoute)
+              ),
           },
           {
             name: "stock_movements.show",
             path: "show/:id",
             resourceAction: "show",
-            element: routeGuarded(
-              "stock_movements",
-              "view",
-              <StockMovementShow />
-            ),
+            lazy: () =>
+              import("@/pages/stock-movements/route-components").then(
+                ({ StockMovementShowRoute }) =>
+                  routeComponent(StockMovementShowRoute)
+              ),
             children: [
               {
                 name: "stock_movements.show.product",
                 path: "products/:productId",
-                element: routeGuarded(
-                  "products",
-                  "view",
-                  <StockMovementProductShow />
-                ),
+                lazy: () =>
+                  import("@/pages/stock-movements/route-components").then(
+                    ({ StockMovementProductShowRoute }) =>
+                      routeComponent(StockMovementProductShowRoute)
+                  ),
                 children: [
                   {
                     name: "stock_movements.show.product.edit",
                     path: "edit",
-                    element: routeGuarded(
-                      "products",
-                      "update",
-                      <StockMovementProductEdit />
-                    ),
+                    lazy: () =>
+                      import("@/pages/stock-movements/route-components").then(
+                        ({ StockMovementProductEditRoute }) =>
+                          routeComponent(StockMovementProductEditRoute)
+                      ),
                   },
                 ],
               },
@@ -329,23 +322,20 @@ export const appRoutes = defineAppRoutes([
           {
             name: "stock_movements.product",
             path: "products/:id",
-            element: routeGuarded(
-              "products",
-              "view",
-              <ProductShow closeTo="/stock/movements" />
-            ),
+            lazy: () =>
+              import("@/pages/products/route-components").then(
+                ({ StockMovementProductRoute }) =>
+                  routeComponent(StockMovementProductRoute)
+              ),
             children: [
               {
                 name: "stock_movements.product.edit",
                 path: "edit",
-                element: routeGuarded(
-                  "products",
-                  "update",
-                  <ProductEdit
-                    returnTo="show"
-                    showCloseToBase="/stock/movements/products"
-                  />
-                ),
+                lazy: () =>
+                  import("@/pages/products/route-components").then(
+                    ({ StockMovementProductEditRoute }) =>
+                      routeComponent(StockMovementProductEditRoute)
+                  ),
               },
             ],
           },
@@ -354,7 +344,7 @@ export const appRoutes = defineAppRoutes([
       {
         name: "stock_alerts",
         path: "alerts",
-        element: <StockAlertsPage />,
+        lazy: () => import("@/pages/stock-alerts/route"),
         resource: {
           meta: {
             label: "Low Stock Alerts",
@@ -372,23 +362,20 @@ export const appRoutes = defineAppRoutes([
           {
             name: "stock_alerts.product",
             path: "products/:id",
-            element: routeGuarded(
-              "products",
-              "view",
-              <ProductShow closeTo="/stock/alerts" />
-            ),
+            lazy: () =>
+              import("@/pages/products/route-components").then(
+                ({ StockAlertProductRoute }) =>
+                  routeComponent(StockAlertProductRoute)
+              ),
             children: [
               {
                 name: "stock_alerts.product.edit",
                 path: "edit",
-                element: routeGuarded(
-                  "products",
-                  "update",
-                  <ProductEdit
-                    returnTo="show"
-                    showCloseToBase="/stock/alerts/products"
-                  />
-                ),
+                lazy: () =>
+                  import("@/pages/products/route-components").then(
+                    ({ StockAlertProductEditRoute }) =>
+                      routeComponent(StockAlertProductEditRoute)
+                  ),
               },
             ],
           },
@@ -412,11 +399,11 @@ export const appRoutes = defineAppRoutes([
       {
         name: "scm_inventory_counts",
         path: "counts",
-        element: routeGuarded(
-          "inventory_counts",
-          "list",
-          <InventoryCountList />
-        ),
+        lazy: () =>
+          import("@/pages/inventory-counts/route-components").then(
+            ({ InventoryCountListRoute }) =>
+              routeComponent(InventoryCountListRoute)
+          ),
         resource: {
           meta: {
             label: "Inventory Counts",
@@ -437,21 +424,21 @@ export const appRoutes = defineAppRoutes([
             name: "inventory_counts.create",
             path: "create",
             resourceAction: "create",
-            element: routeGuarded(
-              "inventory_counts",
-              "create",
-              <InventoryCountCreate />
-            ),
+            lazy: () =>
+              import("@/pages/inventory-counts/route-components").then(
+                ({ InventoryCountCreateRoute }) =>
+                  routeComponent(InventoryCountCreateRoute)
+              ),
           },
           {
             name: "inventory_counts.show",
             path: "show/:id",
             resourceAction: "show",
-            element: routeGuarded(
-              "inventory_counts",
-              "view",
-              <InventoryCountShow />
-            ),
+            lazy: () =>
+              import("@/pages/inventory-counts/route-components").then(
+                ({ InventoryCountShowRoute }) =>
+                  routeComponent(InventoryCountShowRoute)
+              ),
           },
         ],
       },

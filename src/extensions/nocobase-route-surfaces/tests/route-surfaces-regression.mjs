@@ -59,7 +59,7 @@ try {
 
   assert.match(
     extensionSource,
-    /path="edit\/:id"/,
+    /path: "edit\/:id"/,
     "keeps list-level edit routes record-addressable"
   );
   assert.match(
@@ -84,7 +84,7 @@ try {
   );
   assert.match(
     guideSource,
-    /path: "edit",\s*\/\/ Contextual duplicate:[\s\S]*?<CustomerEditRoute returnTo="show"/,
+    /path: "edit",\s*\/\/ Contextual duplicate:[\s\S]*?lazy: \(\) => import\("\.\/customers\/show-edit-route"\)/,
     "keeps the detail-owned editor contextual instead of registering a duplicate resource action"
   );
 

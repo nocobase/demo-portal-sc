@@ -2,6 +2,8 @@ import { useGetLocale, useShow, useTranslate } from "@refinedev/core";
 import { useNavigate, useOutlet, useParams } from "react-router";
 import { Pencil, RotateCw } from "lucide-react";
 
+import { AccessDenied } from "@/components/access-control/access-denied";
+import { CanAccess } from "@/components/access-control/can-access";
 import { LoadingState } from "@/components/app-shell/loading-state";
 import { EditButton } from "@/components/resources/buttons/edit";
 import { RefreshButton } from "@/components/resources/buttons/refresh";
@@ -326,5 +328,13 @@ function DetailSection({
         ))}
       </dl>
     </section>
+  );
+}
+
+export default function UserShowRoute() {
+  return (
+    <CanAccess resource="users" action="show" fallback={<AccessDenied />}>
+      <UserShow />
+    </CanAccess>
   );
 }

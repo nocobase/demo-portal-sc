@@ -16,6 +16,8 @@ Components copied from shadcn/ui are owned and maintained by this project; upstr
 
 Put application-owned business routes in `src/routes.tsx` with `defineAppRoutes`. A route with a `resource` entry contributes its Refine resource and navigation item, while the same definition generates its React Router route. Mark create, edit, and show children with `resourceAction` so their paths populate the same Refine resource instead of being repeated. Use `access.roles` for route-level role constraints; nested routes inherit parent constraints, and the runtime applies the complete chain to both menu visibility and direct URL access. Do not repeat those roles in `resource.meta.acl` or a manually written route guard.
 
+Use a route's `lazy` loader for page modules so business and Registry pages stay out of the initial bundle until their URL is rendered. The loader follows `React.lazy` and resolves a module with a default component. Reserve `element` for lightweight inline layouts, redirects, and outlet composition; `element` and `lazy` are mutually exclusive.
+
 Give every resource route a real path such as `/dashboard`. Do not combine `index: true` with `resource` or `resourceAction`; the application index is reserved for navigation to the first accessible menu route.
 
 `resourceAction` assigns a child path to the parent Refine resource's create, edit, or show URL; it does not choose the presentation. The automatic outlet keeps the resource page mounted, so the child must render `RouteDrawer` or `RouteDialog`; use `outlet: "manual"` when a full page should replace the list or needs custom nesting.
@@ -28,6 +30,6 @@ Route access currently centralizes role constraints only. Keep NocoBase resource
 
 ## Develop Portal Registry items
 
-Canonical NocoBase Registry source lives under `registry/`. In this source repository, normal development and builds load it directly; do not copy it into `src/extensions` for preview. Imports from a Registry item to the host application must use the `@/` alias. Relative imports must stay within that Registry item's own root so the item remains portable after installation. Registry items target this Portal Template's React, shadcn Base UI, and pnpm toolchain. They must never import Ant Design or NocoBase's Ant Design-based client components.
+Canonical NocoBase Registry source lives under `registry/`. In this source repository, normal development and builds load it directly; do not copy it into `src/extensions` for preview. Registry items must import stable Portal runtime, client, authentication, ACL, routing, and extension contracts from documented `@nocobase/portal-sdk` exports. Imports to user-owned host UI and composition must use the `@/` alias. Relative imports must stay within that Registry item's own root so the item remains portable after installation. Registry items target this Portal Template's React, shadcn Base UI, and pnpm toolchain. They must never import Ant Design or NocoBase's Ant Design-based client components.
 
 Keep Registry items portable and focused on reusable API adapters, hooks, components, and small demos. Update `registry.config.json` whenever an item's files, dependencies, or installation target changes. Validate Registry changes with the normal application build and the relevant regression scripts.

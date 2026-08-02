@@ -1,63 +1,6 @@
 import type { AppExtension } from "@nocobase/portal-sdk/extensions";
+import { defineAppRoutes } from "@nocobase/portal-sdk/routing";
 import { Layers3 } from "lucide-react";
-import { lazy } from "react";
-import { Route } from "react-router";
-import { LazyRouteSurfaceDemo } from "./demo/lazy-route";
-
-const DemoHome = lazy(() =>
-  import("./demo").then((module) => ({
-    default: module.RouteSurfacesDemoHome,
-  }))
-);
-const DemoDrawer = lazy(() =>
-  import("./demo").then((module) => ({ default: module.DemoDrawerRoute }))
-);
-const DemoSecondDrawer = lazy(() =>
-  import("./demo").then((module) => ({
-    default: module.DemoSecondDrawerRoute,
-  }))
-);
-const DemoDialog = lazy(() =>
-  import("./demo").then((module) => ({ default: module.DemoDialogRoute }))
-);
-const DemoPage = lazy(() =>
-  import("./demo").then((module) => ({ default: module.DemoPageRoute }))
-);
-const DemoPageDrawer = lazy(() =>
-  import("./demo").then((module) => ({
-    default: module.DemoPageDrawerRoute,
-  }))
-);
-const DemoPageDrawerDialog = lazy(() =>
-  import("./demo").then((module) => ({
-    default: module.DemoPageDrawerDialogRoute,
-  }))
-);
-const DemoContextualHome = lazy(() =>
-  import("./demo").then((module) => ({
-    default: module.DemoContextualHomeRoute,
-  }))
-);
-const DemoContextualList = lazy(() =>
-  import("./demo").then((module) => ({
-    default: module.DemoContextualListRoute,
-  }))
-);
-const DemoContextualDetail = lazy(() =>
-  import("./demo").then((module) => ({
-    default: module.DemoContextualDetailRoute,
-  }))
-);
-const DemoContextualCreate = lazy(() =>
-  import("./demo").then((module) => ({
-    default: module.DemoContextualCreateRoute,
-  }))
-);
-const DemoContextualEdit = lazy(() =>
-  import("./demo").then((module) => ({
-    default: module.DemoContextualEditRoute,
-  }))
-);
 
 const routeSurfacesExtension: AppExtension = {
   id: "nocobase-route-surfaces",
@@ -75,124 +18,126 @@ const routeSurfacesExtension: AppExtension = {
         },
       },
     ],
-    routes: (
-      <>
-        <Route
-          key="route-surfaces-overlays"
-          path="route-surfaces"
-          element={
-            <LazyRouteSurfaceDemo>
-              <DemoHome />
-            </LazyRouteSurfaceDemo>
-          }
-        >
-          <Route
-            path="drawer"
-            element={
-              <LazyRouteSurfaceDemo>
-                <DemoDrawer />
-              </LazyRouteSurfaceDemo>
-            }
-          >
-            <Route
-              path="second"
-              element={
-                <LazyRouteSurfaceDemo>
-                  <DemoSecondDrawer />
-                </LazyRouteSurfaceDemo>
-              }
-            />
-          </Route>
-          <Route
-            path="dialog"
-            element={
-              <LazyRouteSurfaceDemo>
-                <DemoDialog />
-              </LazyRouteSurfaceDemo>
-            }
-          />
-        </Route>
-        <Route
-          key="route-surfaces-page"
-          path="route-surfaces/page"
-          element={
-            <LazyRouteSurfaceDemo>
-              <DemoPage />
-            </LazyRouteSurfaceDemo>
-          }
-        >
-          <Route
-            path="drawer"
-            element={
-              <LazyRouteSurfaceDemo>
-                <DemoPageDrawer />
-              </LazyRouteSurfaceDemo>
-            }
-          >
-            <Route
-              path="dialog"
-              element={
-                <LazyRouteSurfaceDemo>
-                  <DemoPageDrawerDialog />
-                </LazyRouteSurfaceDemo>
-              }
-            />
-          </Route>
-        </Route>
-        <Route
-          key="route-surfaces-contextual"
-          path="route-surfaces/contextual"
-          element={
-            <LazyRouteSurfaceDemo>
-              <DemoContextualHome />
-            </LazyRouteSurfaceDemo>
-          }
-        >
-          <Route
-            path="list"
-            element={
-              <LazyRouteSurfaceDemo>
-                <DemoContextualList />
-              </LazyRouteSurfaceDemo>
-            }
-          >
-            <Route
-              path="create"
-              element={
-                <LazyRouteSurfaceDemo>
-                  <DemoContextualCreate />
-                </LazyRouteSurfaceDemo>
-              }
-            />
-            <Route
-              path="detail/:id"
-              element={
-                <LazyRouteSurfaceDemo>
-                  <DemoContextualDetail />
-                </LazyRouteSurfaceDemo>
-              }
-            >
-              <Route
-                path="edit"
-                element={
-                  <LazyRouteSurfaceDemo>
-                    <DemoContextualEdit />
-                  </LazyRouteSurfaceDemo>
-                }
-              />
-            </Route>
-            <Route
-              path="edit/:id"
-              element={
-                <LazyRouteSurfaceDemo>
-                  <DemoContextualEdit />
-                </LazyRouteSurfaceDemo>
-              }
-            />
-          </Route>
-        </Route>
-      </>
-    ),
+    routes: defineAppRoutes([
+      {
+        name: "development.route-surfaces.overlays",
+        path: "route-surfaces",
+        lazy: () =>
+          import("./demo").then((module) => ({
+            default: module.RouteSurfacesDemoHome,
+          })),
+        children: [
+          {
+            name: "development.route-surfaces.drawer",
+            path: "drawer",
+            lazy: () =>
+              import("./demo").then((module) => ({
+                default: module.DemoDrawerRoute,
+              })),
+            children: [
+              {
+                name: "development.route-surfaces.drawer.second",
+                path: "second",
+                lazy: () =>
+                  import("./demo").then((module) => ({
+                    default: module.DemoSecondDrawerRoute,
+                  })),
+              },
+            ],
+          },
+          {
+            name: "development.route-surfaces.dialog",
+            path: "dialog",
+            lazy: () =>
+              import("./demo").then((module) => ({
+                default: module.DemoDialogRoute,
+              })),
+          },
+        ],
+      },
+      {
+        name: "development.route-surfaces.page",
+        path: "route-surfaces/page",
+        lazy: () =>
+          import("./demo").then((module) => ({
+            default: module.DemoPageRoute,
+          })),
+        children: [
+          {
+            name: "development.route-surfaces.page.drawer",
+            path: "drawer",
+            lazy: () =>
+              import("./demo").then((module) => ({
+                default: module.DemoPageDrawerRoute,
+              })),
+            children: [
+              {
+                name: "development.route-surfaces.page.drawer.dialog",
+                path: "dialog",
+                lazy: () =>
+                  import("./demo").then((module) => ({
+                    default: module.DemoPageDrawerDialogRoute,
+                  })),
+              },
+            ],
+          },
+        ],
+      },
+      {
+        name: "development.route-surfaces.contextual",
+        path: "route-surfaces/contextual",
+        lazy: () =>
+          import("./demo").then((module) => ({
+            default: module.DemoContextualHomeRoute,
+          })),
+        children: [
+          {
+            name: "development.route-surfaces.contextual.list",
+            path: "list",
+            lazy: () =>
+              import("./demo").then((module) => ({
+                default: module.DemoContextualListRoute,
+              })),
+            children: [
+              {
+                name: "development.route-surfaces.contextual.create",
+                path: "create",
+                lazy: () =>
+                  import("./demo").then((module) => ({
+                    default: module.DemoContextualCreateRoute,
+                  })),
+              },
+              {
+                name: "development.route-surfaces.contextual.detail",
+                path: "detail/:id",
+                lazy: () =>
+                  import("./demo").then((module) => ({
+                    default: module.DemoContextualDetailRoute,
+                  })),
+                children: [
+                  {
+                    name: "development.route-surfaces.contextual.detail.edit",
+                    path: "edit",
+                    lazy: () =>
+                      import("./demo").then((module) => ({
+                        default: module.DemoContextualEditRoute,
+                      })),
+                  },
+                ],
+              },
+              {
+                name: "development.route-surfaces.contextual.edit",
+                path: "edit/:id",
+                lazy: () =>
+                  import("./demo").then((module) => ({
+                    default: module.DemoContextualEditRoute,
+                  })),
+              },
+            ],
+          },
+        ],
+      },
+    ]),
   },
 };
 

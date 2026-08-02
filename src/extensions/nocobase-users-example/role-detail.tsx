@@ -1,6 +1,8 @@
 import { useGetLocale, useOne, useTranslate } from "@refinedev/core";
 import { useParams } from "react-router";
 
+import { AccessDenied } from "@/components/access-control/access-denied";
+import { CanAccess } from "@/components/access-control/can-access";
 import { LoadingState } from "@/components/app-shell/loading-state";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -257,5 +259,21 @@ function RoleDetailSection({
         ))}
       </dl>
     </section>
+  );
+}
+
+export function UserRoleDetailRoute() {
+  return (
+    <CanAccess resource="roles" action="show" fallback={<AccessDenied />}>
+      <RoleDetailRoute returnTo="list" />
+    </CanAccess>
+  );
+}
+
+export function UserShowRoleDetailRoute() {
+  return (
+    <CanAccess resource="roles" action="show" fallback={<AccessDenied />}>
+      <RoleDetailRoute returnTo="show" />
+    </CanAccess>
   );
 }
