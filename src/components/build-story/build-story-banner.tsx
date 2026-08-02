@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { buildReplicatePrompt } from "./replicate-prompt";
 
 // ---------------------------------------------------------------------------
 // "Behind the build" banner for the SCM-family portals. Self-contained and
@@ -100,6 +101,17 @@ const T = {
   },
   copyPrompt: { en: "Copy agent prompt", zh: "复制 Agent 提示词" },
   promptCopied: { en: "Copied!", zh: "已复制" },
+  copyBuildPrompt: { en: "Copy build prompt", zh: "复制复刻提示词" },
+  copyBuildPromptHint: {
+    en: "Copy a prompt that rebuilds this app from scratch with your own coding agent",
+    zh: "复制一段提示词，用你自己的编码 agent 从零复刻这个应用",
+  },
+  copyConnectPrompt: { en: "Copy connect prompt", zh: "复制接入提示词" },
+  copyConnectPromptHint: {
+    en: "Copy a prompt that connects your coding agent to this instance so it can modify the app",
+    zh: "复制一段提示词，把你的编码 agent 接入本实例来修改这个应用",
+  },
+
   copyPromptHint: {
     en: "Copy a ready-to-paste prompt for your own coding agent",
     zh: "复制一段提示词,粘贴到你自己的编码 agent 里继续开发",
@@ -146,7 +158,8 @@ function buildAgentPrompt() {
     `Portal name: ${portal}`,
     "",
     "Setup:",
-    "1. Install the NocoBase CLI (the Portal commands ship in the 3.0 alpha channel):",
+    "1. Install the NocoBase CLI:",
+    "   # NocoBase 3.0's AI mode is a preview and currently only ships on the latest alpha",
     "     npm i -g @nocobase/cli@alpha        # gives you the `nb` command",
     "2. Connect the CLI to this instance:",
     `     nb env add mydemo --api-base-url ${apiBase} --auth-type token --access-token <YOUR_TOKEN>`,
@@ -198,7 +211,17 @@ async function copyToClipboard(text: string) {
   }
 }
 
-function CopyPromptButton({ t }: { t: (b: BiText) => string }) {
+function CopyPromptButton({
+  t,
+  getText,
+  label,
+  hint,
+}: {
+  t: (b: BiText) => string;
+  getText: () => string;
+  label: BiText;
+  hint: BiText;
+}) {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -211,19 +234,30 @@ function CopyPromptButton({ t }: { t: (b: BiText) => string }) {
     <button
       type="button"
       onClick={async () => {
-        if (await copyToClipboard(buildAgentPrompt())) setCopied(true);
+        if (await copyToClipboard(getText())) setCopied(true);
       }}
-      title={t(T.copyPromptHint)}
+      title={t(hint)}
       className={cn(
-        "ml-auto inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px] font-medium transition-colors",
+        "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px] font-medium transition-colors",
         copied
           ? "border-primary/40 bg-primary/10 text-primary"
           : "border-border/70 bg-background/60 text-muted-foreground hover:border-primary/40 hover:text-foreground"
       )}
     >
       {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
-      {copied ? t(T.promptCopied) : t(T.copyPrompt)}
+      {copied ? t(T.promptCopied) : t(label)}
     </button>
+  );
+}
+
+// Two prompts: one rebuilds the app from scratch, one connects an agent to
+// this running instance to change it.
+function CopyPromptButtons({ t }: { t: (b: BiText) => string }) {
+  return (
+    <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
+      <CopyPromptButton t={t} getText={buildReplicatePrompt} label={T.copyBuildPrompt} hint={T.copyBuildPromptHint} />
+      <CopyPromptButton t={t} getText={buildAgentPrompt} label={T.copyConnectPrompt} hint={T.copyConnectPromptHint} />
+    </div>
   );
 }
 
@@ -276,7 +310,7 @@ export function BuildStoryBanner({ story }: { story: BuildStory }) {
               <ModelPill key={m} model={m} />
             ))}
           </div>
-          <CopyPromptButton t={t} />
+          <CopyPromptButtons t={t} />
         </div>
 
         {/* toggles */}
