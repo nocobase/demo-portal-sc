@@ -118,7 +118,6 @@ export function MovementFormFields({
                     options={MOVEMENT_TYPES}
                     value={field.value}
                     onValueChange={field.onChange}
-                    locale={locale}
                     placeholder={translate(
                       "inv.movements.form.type.placeholder",
                       { ns: "inv" },

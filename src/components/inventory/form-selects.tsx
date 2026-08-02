@@ -10,14 +10,13 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import type { OptionItem } from "@/lib/inventory/constants";
-import { optionLabel } from "@/lib/inventory/constants";
+import { optionLabel, optionText } from "@/lib/inventory/constants";
 
 export function EnumSelectField({
   options,
   value,
   onValueChange,
   placeholder,
-  locale,
   disabled,
   className,
 }: {
@@ -25,7 +24,6 @@ export function EnumSelectField({
   value?: string | null;
   onValueChange: (value: string) => void;
   placeholder?: string;
-  locale?: string;
   disabled?: boolean;
   className?: string;
 }) {
@@ -39,13 +37,13 @@ export function EnumSelectField({
     >
       <SelectTrigger className={cn("w-full", className)}>
         <SelectValue>
-          {(raw) => optionLabel(options, raw as string, locale) || placeholder || "-"}
+          {(raw) => optionLabel(options, raw as string) || placeholder || "-"}
         </SelectValue>
       </SelectTrigger>
       <SelectContent>
         {options.map((option) => (
           <SelectItem key={option.value} value={option.value}>
-            {locale === "en-US" ? option.labelEn : option.labelZh}
+            {optionText(option)}
           </SelectItem>
         ))}
       </SelectContent>

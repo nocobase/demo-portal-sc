@@ -183,7 +183,6 @@ export function ProductFormFields({
                     options={PRODUCT_UNITS}
                     value={field.value}
                     onValueChange={field.onChange}
-                    locale={locale}
                     placeholder={translate(
                       "inv.products.form.unit.placeholder",
                       { ns: "inv" },
@@ -247,7 +246,6 @@ export function ProductFormFields({
                     options={PRODUCT_STATUS}
                     value={field.value}
                     onValueChange={field.onChange}
-                    locale={locale}
                     placeholder={translate(
                       "inv.products.form.status.placeholder",
                       { ns: "inv" },

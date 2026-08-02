@@ -1,7 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { OptionItem } from "@/lib/inventory/constants";
-import { resolveOption } from "@/lib/inventory/constants";
+import { optionText, resolveOption } from "@/lib/inventory/constants";
 
 const colorClasses: Record<string, string> = {
   green: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300",
@@ -32,7 +32,7 @@ export function OptionBadge({
   if (!option) return <span className="text-muted-foreground">{empty}</span>;
 
   const isChinese = locale !== "en-US";
-  const label = isChinese ? option.labelZh : option.labelEn;
+  const label = optionText(option);
 
   return (
     <Badge

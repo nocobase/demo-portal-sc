@@ -288,7 +288,7 @@ export function CountItemsPanel({
                         <span className="block truncate text-xs text-muted-foreground">
                           {item.product?.sku}
                           {item.product?.unit
-                            ? ` · ${optionLabel(PRODUCT_UNITS, item.product.unit, locale)}`
+                            ? ` · ${optionLabel(PRODUCT_UNITS, item.product.unit)}`
                             : ""}
                         </span>
                       </div>

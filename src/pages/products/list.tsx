@@ -20,6 +20,7 @@ import { OptionBadge } from "@/components/inventory/option-badge";
 import { formatCurrency, formatNumber } from "@/lib/inventory/format";
 import {
   optionLabel,
+  optionText,
   PRODUCT_STATUS,
   PRODUCT_UNITS,
 } from "@/lib/inventory/constants";
@@ -73,7 +74,7 @@ export const ProductList = () => {
     () =>
       PRODUCT_STATUS.map((option) => ({
         value: option.value,
-        label: locale === "en-US" ? option.labelEn : option.labelZh,
+        label: optionText(option),
       })),
     [locale]
   );
@@ -172,7 +173,7 @@ export const ProductList = () => {
               table={table}
               options={PRODUCT_UNITS.map((option) => ({
                 value: option.value,
-                label: locale === "en-US" ? option.labelEn : option.labelZh,
+                label: optionText(option),
               }))}
               defaultOperator="eq"
               operators={["eq"]}
@@ -181,7 +182,7 @@ export const ProductList = () => {
         ),
         enableSorting: false,
         size: 90,
-        cell: ({ getValue }) => optionLabel(PRODUCT_UNITS, getValue(), locale),
+        cell: ({ getValue }) => optionLabel(PRODUCT_UNITS, getValue()),
       }),
       columnHelper.accessor("currentStock", {
         id: "currentStock",

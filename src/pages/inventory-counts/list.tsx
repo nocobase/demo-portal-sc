@@ -16,7 +16,7 @@ import { ShowButton } from "@/components/resources/buttons/show";
 import { ListView } from "@/components/resources/views/list-view";
 import { OptionBadge } from "@/components/inventory/option-badge";
 import { formatDate, formatNumber } from "@/lib/inventory/format";
-import { COUNT_SCOPES, COUNT_STATUS } from "@/lib/inventory/constants";
+import { COUNT_SCOPES, COUNT_STATUS, optionText} from "@/lib/inventory/constants";
 import type { InventoryCountRecord } from "@/lib/inventory/types";
 
 function ColumnHeader<TValue>({
@@ -49,7 +49,7 @@ export const InventoryCountList = () => {
     () =>
       COUNT_STATUS.map((option) => ({
         value: option.value,
-        label: locale === "en-US" ? option.labelEn : option.labelZh,
+        label: optionText(option),
       })),
     [locale]
   );
@@ -57,7 +57,7 @@ export const InventoryCountList = () => {
     () =>
       COUNT_SCOPES.map((option) => ({
         value: option.value,
-        label: locale === "en-US" ? option.labelEn : option.labelZh,
+        label: optionText(option),
       })),
     [locale]
   );

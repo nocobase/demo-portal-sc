@@ -72,7 +72,6 @@ export function CountFormFields({
                   options={COUNT_SCOPES}
                   value={field.value}
                   onValueChange={field.onChange}
-                  locale={locale}
                   placeholder={translate(
                     "inv.counts.form.scope.placeholder",
                     { ns: "inv" },

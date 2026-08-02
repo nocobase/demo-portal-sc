@@ -16,7 +16,7 @@ import { ShowButton } from "@/components/resources/buttons/show";
 import { ListView } from "@/components/resources/views/list-view";
 import { OptionBadge } from "@/components/inventory/option-badge";
 import { formatDateTime, formatNumber } from "@/lib/inventory/format";
-import { MOVEMENT_TYPES } from "@/lib/inventory/constants";
+import { MOVEMENT_TYPES, optionText} from "@/lib/inventory/constants";
 import type { StockMovementRecord } from "@/lib/inventory/types";
 import { useAIPageElementHandle } from "@/lib/inventory/ai-handle";
 
@@ -50,7 +50,7 @@ export const StockMovementList = () => {
     () =>
       MOVEMENT_TYPES.map((option) => ({
         value: option.value,
-        label: locale === "en-US" ? option.labelEn : option.labelZh,
+        label: optionText(option),
       })),
     [locale]
   );

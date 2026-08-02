@@ -200,7 +200,7 @@ export const ProductShow = ({
                 />
                 <DetailItem
                   label={translate("inv.products.fields.unit", { ns: "inv" }, "Unit")}
-                  value={optionLabel(PRODUCT_UNITS, record.unit, locale)}
+                  value={optionLabel(PRODUCT_UNITS, record.unit)}
                 />
                 <DetailItem
                   label={translate("inv.products.fields.barcode", { ns: "inv" }, "Barcode")}
