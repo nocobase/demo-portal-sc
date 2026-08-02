@@ -8,6 +8,7 @@ import {
   Truck,
 } from "lucide-react";
 import type { ComponentType } from "react";
+import { Navigate } from "react-router";
 
 import { defineAppRoutes } from "@nocobase/portal-sdk/routing";
 
@@ -49,6 +50,14 @@ export const appRoutes = defineAppRoutes([
       },
     },
     children: [
+      // Group segments carry no page of their own. Without an index route they
+      // render an empty shell when reached by URL or breadcrumb, so send them
+      // to the group's first page instead.
+      {
+        name: "goods.index",
+        index: true,
+        element: <Navigate to="/goods/products" replace />,
+      },
       {
         name: "scm_products",
         path: "products",
@@ -254,6 +263,11 @@ export const appRoutes = defineAppRoutes([
     },
     children: [
       {
+        name: "stock.index",
+        index: true,
+        element: <Navigate to="/stock/movements" replace />,
+      },
+      {
         name: "scm_stock_movements",
         path: "movements",
         lazy: () =>
@@ -396,6 +410,11 @@ export const appRoutes = defineAppRoutes([
       },
     },
     children: [
+      {
+        name: "counting.index",
+        index: true,
+        element: <Navigate to="/counting/counts" replace />,
+      },
       {
         name: "scm_inventory_counts",
         path: "counts",
