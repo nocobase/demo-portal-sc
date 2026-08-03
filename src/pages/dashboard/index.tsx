@@ -38,8 +38,8 @@ import type { ProductRecord } from "@/lib/inventory/types";
 const BUILD_STORY: BuildStory = {
   models: ["DeepSeek V4 Flash 0731"],
   intro: {
-    en: "Inventory management — products, stock, suppliers, movements, counts.",
-    zh: "库存管理 —— 商品、库存、供应商、出入库、盘点。",
+    en: "A warehouse stock control system — product records, stock movements and low-stock alerts in one place, so you always see what's left and when to reorder. This whole system was designed and built end-to-end by an AI coding agent. You can connect your own coding agent and keep developing it.",
+    zh: "仓库的库存管理系统:商品资料、出入库流水、库存预警都在一处,货还剩多少、什么时候该补货看得明明白白。整套系统从设计到实现,都由 AI coding agent 完成。你可以接入你的 Coding Agent,继续开发它。",
   },
   tracks: [
     {

@@ -211,52 +211,116 @@ async function copyToClipboard(text: string) {
   }
 }
 
-function CopyPromptButton({
+function PromptPanel({
   t,
-  getText,
-  label,
+  text,
   hint,
 }: {
   t: (b: BiText) => string;
-  getText: () => string;
-  label: BiText;
+  text: string;
   hint: BiText;
 }) {
   const [copied, setCopied] = useState(false);
-
   useEffect(() => {
     if (!copied) return;
     const id = setTimeout(() => setCopied(false), 2000);
     return () => clearTimeout(id);
   }, [copied]);
+  return (
+    <div className="mt-2 overflow-hidden rounded-xl border border-border/60 bg-muted/30">
+      <div className="flex items-center justify-between gap-2 border-b border-border/50 px-3 py-2">
+        <p className="min-w-0 text-sm font-medium leading-5 text-foreground">{t(hint)}</p>
+        <button
+          type="button"
+          onClick={async () => {
+            if (await copyToClipboard(text)) setCopied(true);
+          }}
+          className={cn(
+            "inline-flex shrink-0 items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-medium transition-colors",
+            copied
+              ? "border-primary/40 bg-primary/10 text-primary"
+              : "border-border/70 bg-background/60 text-muted-foreground hover:border-primary/40 hover:text-foreground"
+          )}
+        >
+          {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
+          {copied ? t(T.promptCopied) : t({ en: "Copy", zh: "复制" })}
+        </button>
+      </div>
+      <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words px-3 py-2.5 font-mono text-[11px] leading-5 text-foreground/85">
+        {text}
+      </pre>
+    </div>
+  );
+}
 
+function PromptToggle({
+  active,
+  onClick,
+  icon,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: ReactNode;
+  label: string;
+}) {
   return (
     <button
       type="button"
-      onClick={async () => {
-        if (await copyToClipboard(getText())) setCopied(true);
-      }}
-      title={t(hint)}
+      onClick={onClick}
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px] font-medium transition-colors",
-        copied
-          ? "border-primary/40 bg-primary/10 text-primary"
-          : "border-border/70 bg-background/60 text-muted-foreground hover:border-primary/40 hover:text-foreground"
+        "inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-xs font-semibold shadow-sm transition-all",
+        active
+          ? "border-primary bg-primary text-primary-foreground shadow-primary/25"
+          : "border-primary/35 bg-primary/10 text-primary hover:border-primary/60 hover:bg-primary/20"
       )}
     >
-      {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
-      {copied ? t(T.promptCopied) : t(label)}
+      {icon}
+      {label}
+      <ChevronDown
+        className={cn("size-3.5 transition-transform", active && "rotate-180")}
+      />
     </button>
   );
 }
 
-// Two prompts: one rebuilds the app from scratch, one connects an agent to
-// this running instance to change it.
-function CopyPromptButtons({ t }: { t: (b: BiText) => string }) {
+// Two prompts the visitor can open inline and read before copying: one rebuilds
+// the app from scratch, one connects a coding agent to this live instance.
+function PromptExplorer({ t }: { t: (b: BiText) => string }) {
+  const [open, setOpen] = useState<"build" | "connect" | null>(null);
+  const text =
+    open === "build"
+      ? buildReplicatePrompt()
+      : open === "connect"
+        ? buildAgentPrompt()
+        : "";
+  const hint: BiText =
+    open === "build"
+      ? {
+          en: "Copy the prompt below and send it to your coding agent — it'll build you a similar app.",
+          zh: "复制下面这段 Prompt 发送给你的 Coding agent,它就能为你开发一个类似的应用。",
+        }
+      : {
+          en: "Copy the prompt below and send it to your coding agent — it'll connect to this NocoBase demo instance so you can keep developing and editing.",
+          zh: "复制下面这段 Prompt 发送给你的 Coding agent,它就能连上这个 NocoBase demo 实例,你可以继续开发修改。",
+        };
   return (
-    <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
-      <CopyPromptButton t={t} getText={buildReplicatePrompt} label={T.copyBuildPrompt} hint={T.copyBuildPromptHint} />
-      <CopyPromptButton t={t} getText={buildAgentPrompt} label={T.copyConnectPrompt} hint={T.copyConnectPromptHint} />
+    <div>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <PromptToggle
+          active={open === "build"}
+          onClick={() => setOpen((o) => (o === "build" ? null : "build"))}
+          icon={<Sparkles className="size-3.5" />}
+          label={t({ en: "Rebuild from scratch", zh: "从零复刻" })}
+        />
+        <PromptToggle
+          active={open === "connect"}
+          onClick={() => setOpen((o) => (o === "connect" ? null : "connect"))}
+          icon={<Bot className="size-3.5" />}
+          label={t({ en: "Connect & customize", zh: "接入改造" })}
+        />
+      </div>
+      {open && <PromptPanel t={t} text={text} hint={hint} />}
     </div>
   );
 }
@@ -310,8 +374,9 @@ export function BuildStoryBanner({ story }: { story: BuildStory }) {
               <ModelPill key={m} model={m} />
             ))}
           </div>
-          <CopyPromptButtons t={t} />
         </div>
+
+        <PromptExplorer t={t} />
 
         {/* toggles */}
         <div className="flex flex-wrap items-center gap-4 border-t border-border/60 pt-3">
