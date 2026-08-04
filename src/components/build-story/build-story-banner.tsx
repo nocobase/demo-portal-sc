@@ -312,12 +312,6 @@ function PromptExplorer({ t }: { t: (b: BiText) => string }) {
     <div>
       <div className="flex flex-wrap items-center gap-1.5">
         <PromptToggle
-          active={open === "build"}
-          onClick={() => setOpen((o) => (o === "build" ? null : "build"))}
-          icon={<Sparkles className="size-3.5" />}
-          label={t({ en: "Rebuild from scratch", zh: "从零复刻" })}
-        />
-        <PromptToggle
           active={open === "connect"}
           onClick={() => setOpen((o) => (o === "connect" ? null : "connect"))}
           icon={<Bot className="size-3.5" />}
