@@ -3,12 +3,16 @@ import { useQuery } from "@tanstack/react-query";
 import {
   AlertTriangle,
   Boxes,
+  CircleSlash,
   ClipboardCheck,
   Package,
+  RefreshCcw,
+  Snowflake,
   TrendingUp,
+  Wallet,
 } from "lucide-react";
 import { useMemo } from "react";
-import { Link } from "react-router";
+import { Link, useNavigate, useSearchParams } from "react-router";
 import {
   Bar,
   BarChart,
@@ -31,9 +35,29 @@ import {
 import { AIEmployeeShortcut } from "@/extensions/nocobase-ai/components";
 import type { AIEmployeeTask } from "@/extensions/nocobase-ai/providers";
 import { nocobaseClient } from "@nocobase/portal-sdk/client";
+import { KpiBar, type KpiItem } from "@/components/inventory/kpi-bar";
+import {
+  CoverageLabel,
+  StockHealthBadge,
+} from "@/components/inventory/stock-indicators";
 import { useAIPageElementHandle } from "@/lib/inventory/ai-handle";
+import {
+  averageDailyIssue,
+  classifyAbc,
+  daysOfCover,
+  formatRatio,
+  inventoryValue,
+  isDeadStock,
+  isTracked,
+  isoDaysAgo,
+  stockHealth,
+} from "@/lib/inventory/analytics";
+import { MOVEMENT_TYPES, optionLabel } from "@/lib/inventory/constants";
 import { formatCurrency, formatNumber } from "@/lib/inventory/format";
 import type { ProductRecord } from "@/lib/inventory/types";
+import { useMovementStats } from "@/lib/inventory/use-movement-stats";
+import { stockMovementDelta } from "@/lib/inventory/stock-movement";
+import { cn } from "@/lib/utils";
 
 const BUILD_STORY: BuildStory = {
   models: ["DeepSeek V4 Flash 0731"],
@@ -89,53 +113,7 @@ const BUILD_STORY: BuildStory = {
   ],
 };
 
-type KpiProps = {
-  label: string;
-  value: string;
-  hint?: string;
-  icon: React.ReactNode;
-  to?: string;
-  tone?: "default" | "warning";
-};
-
-const toneClasses: Record<string, string> = {
-  default:
-    "bg-gradient-to-br from-(--brand-1) to-(--brand-2) text-white shadow-sm shadow-brand-1/25",
-  warning:
-    "bg-gradient-to-br from-amber-500 to-orange-500 text-white shadow-sm shadow-amber-500/25",
-};
-
-function KpiCard({ label, value, hint, icon, to, tone = "default" }: KpiProps) {
-  const content = (
-    <Card className="surface-card group h-full">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">
-          {label}
-        </CardTitle>
-        <span
-          className={`grid size-9 place-items-center rounded-xl transition-transform duration-300 group-hover:scale-110 ${toneClasses[tone]}`}
-        >
-          {icon}
-        </span>
-      </CardHeader>
-      <CardContent>
-        <div className="text-3xl font-semibold tracking-tight tabular-nums">
-          {value}
-        </div>
-        {hint ? (
-          <p className="mt-1 text-xs text-muted-foreground">{hint}</p>
-        ) : null}
-      </CardContent>
-    </Card>
-  );
-  return to ? (
-    <Link to={to} className="block transition-opacity hover:opacity-90">
-      {content}
-    </Link>
-  ) : (
-    content
-  );
-}
+const RANGE_OPTIONS = [7, 30, 90, 365] as const;
 
 function useAggregateQuery<T>(
   resource: string,
@@ -157,125 +135,415 @@ export const DashboardPage = () => {
   const translate = useTranslate();
   const getLocale = useGetLocale();
   const locale = getLocale();
-  const now = new Date();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  const baseKpis = useAggregateQuery<Array<{ product_count: number; total_stock: number }>>(
-    "scm_products",
+  const rangeDays = Number(searchParams.get("range")) || 30;
+  const setRangeDays = (days: number) =>
+    setSearchParams(
+      (previous) => {
+        const next = new URLSearchParams(previous);
+        if (days === 30) next.delete("range");
+        else next.set("range", String(days));
+        return next;
+      },
+      { replace: true }
+    );
+
+  const since = useMemo(() => isoDaysAgo(rangeDays), [rangeDays]);
+
+  const pendingCounts = useAggregateQuery<Array<{ pending_count: number }>>(
+    "scm_inventory_counts",
     {
-      measures: [
-        { field: ["id"], aggregation: "count", alias: "product_count" },
-        { field: ["currentStock"], aggregation: "sum", alias: "total_stock" },
-      ],
+      measures: [{ field: ["id"], aggregation: "count", alias: "pending_count" }],
+      filter: { status: { $in: ["draft", "in_progress"] } },
     }
   );
 
-  const pendingCounts = useAggregateQuery<
-    Array<{ pending_count: number }>
-  >("scm_inventory_counts", {
-    measures: [{ field: ["id"], aggregation: "count", alias: "pending_count" }],
-    filter: { status: { $in: ["draft", "in_progress"] } },
-  });
-
   const trendData = useAggregateQuery<
-    Array<{ total_qty: number; date: string; type?: string }>
+    Array<{
+      total_qty: number;
+      total_before: number;
+      total_after: number;
+      date: string;
+      type?: string;
+    }>
   >("scm_stock_movements", {
-    measures: [{ field: ["quantity"], aggregation: "sum", alias: "total_qty" }],
+    measures: [
+      { field: ["quantity"], aggregation: "sum", alias: "total_qty" },
+      { field: ["beforeStock"], aggregation: "sum", alias: "total_before" },
+      { field: ["afterStock"], aggregation: "sum", alias: "total_after" },
+    ],
     dimensions: [
       { field: ["occurredAt"], alias: "date", format: "YYYY-MM-DD" },
       { field: ["type"], alias: "type" },
     ],
     orders: [{ field: ["occurredAt"], alias: "date", order: "asc" }],
-    filter: {
-      $and: [
-        { occurredAt: { $gte: `${now.getFullYear()}-07-01T00:00:00.000Z` } },
-        { type: { $in: ["purchase_in", "sale_out", "return_in"] } },
-      ],
-    },
+    filter: { occurredAt: { $gte: since } },
   });
 
   const { result: productsResult, query: productsQuery } =
     useList<ProductRecord>({
       resource: "scm_products",
-      pagination: { mode: "server", currentPage: 1, pageSize: 200 },
+      pagination: { mode: "server", currentPage: 1, pageSize: 500 },
       errorNotification: false,
       queryOptions: { retry: false },
       meta: { appends: ["category"] },
     });
-  const products = productsResult?.data ?? [];
-
-  const lowStockCount = useMemo(
-    () =>
-      products.filter(
-        (product) =>
-          product.status !== "stopped" &&
-          Number(product.currentStock ?? 0) <= Number(product.safetyStock ?? 0)
-      ).length,
-    [products]
+  const products = useMemo(
+    () => productsResult?.data ?? [],
+    [productsResult?.data]
   );
 
-  const inventoryValue = useMemo(
-    () =>
-      products.reduce(
-        (sum, product) =>
-          sum + Number(product.currentStock ?? 0) * Number(product.purchasePrice ?? 0),
-        0
-      ),
-    [products]
-  );
+  const movements = useMovementStats(rangeDays);
+  const statsById = movements.statsById;
+
+  const portfolio = useMemo(() => {
+    const now = new Date();
+    let units = 0;
+    let value = 0;
+    let cogs = 0;
+    let outOfStock = 0;
+    let lowStock = 0;
+    let deadValue = 0;
+    let deadCount = 0;
+    for (const product of products) {
+      const stats = statsById.get(product.id);
+      units += Number(product.currentStock ?? 0);
+      value += inventoryValue(product);
+      cogs += (stats?.outQty ?? 0) * Number(product.purchasePrice ?? 0);
+      if (!isTracked(product)) continue;
+      const health = stockHealth(product);
+      if (health === "out") outOfStock += 1;
+      if (health === "low") lowStock += 1;
+      if (isDeadStock(product, stats, now)) {
+        deadCount += 1;
+        deadValue += inventoryValue(product);
+      }
+    }
+    return {
+      skus: products.length,
+      units,
+      value,
+      cogs,
+      outOfStock,
+      lowStock,
+      deadValue,
+      deadCount,
+      turns: value > 0 ? (cogs * (365 / rangeDays)) / value : null,
+    };
+  }, [products, rangeDays, statsById]);
 
   const categoryDistribution = useMemo(() => {
-    const map = new Map<string, number>();
+    const map = new Map<string, { name: string; value: number; units: number }>();
     for (const product of products) {
-      const category = product.category?.name ?? translate(
-        "inv.dashboard.uncategorized",
-        { ns: "inv" },
-        "Uncategorized"
-      );
-      map.set(category, (map.get(category) ?? 0) + Number(product.currentStock ?? 0));
+      const name =
+        product.category?.name ??
+        translate("inv.dashboard.uncategorized", { ns: "inv" }, "Uncategorized");
+      const entry = map.get(name) ?? { name, value: 0, units: 0 };
+      entry.value += inventoryValue(product);
+      entry.units += Number(product.currentStock ?? 0);
+      map.set(name, entry);
     }
-    return Array.from(map.entries())
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value);
+    return Array.from(map.values()).sort((a, b) => b.value - a.value);
   }, [products, translate]);
 
   const trendChartData = useMemo(() => {
-    const map = new Map<string, { date: string; inbound: number; outbound: number }>();
+    const map = new Map<
+      string,
+      { date: string; inbound: number; outbound: number }
+    >();
     for (const row of trendData.data ?? []) {
-      const entry =
-        map.get(row.date) ?? { date: row.date, inbound: 0, outbound: 0 };
-      if (row.type === "purchase_in" || row.type === "return_in") {
+      const entry = map.get(row.date) ?? {
+        date: row.date,
+        inbound: 0,
+        outbound: 0,
+      };
+      if (["purchase_in", "return_in", "initial"].includes(row.type ?? "")) {
         entry.inbound += Number(row.total_qty ?? 0);
-      } else {
+      } else if (["sale_out", "loss"].includes(row.type ?? "")) {
         entry.outbound += Number(row.total_qty ?? 0);
       }
       map.set(row.date, entry);
     }
-    return Array.from(map.values());
+    return Array.from(map.values()).sort((a, b) =>
+      a.date.localeCompare(b.date)
+    );
   }, [trendData.data]);
 
-  const totalInbound = useMemo(
-    () => trendChartData.reduce((sum, row) => sum + row.inbound, 0),
-    [trendChartData]
+  const movementMix = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const row of trendData.data ?? []) {
+      const type = row.type ?? "";
+      map.set(type, (map.get(type) ?? 0) + Number(row.total_qty ?? 0));
+    }
+    return MOVEMENT_TYPES.filter((option) => map.has(option.value)).map(
+      (option) => ({
+        name: optionLabel(MOVEMENT_TYPES, option.value),
+        value: map.get(option.value) ?? 0,
+      })
+    );
+  }, [trendData.data]);
+
+  const totals = useMemo(() => {
+    const inbound = trendChartData.reduce((sum, row) => sum + row.inbound, 0);
+    const outbound = trendChartData.reduce((sum, row) => sum + row.outbound, 0);
+    const net = (trendData.data ?? []).reduce(
+      (sum, row) =>
+        sum +
+        stockMovementDelta({
+          beforeStock: row.total_before,
+          afterStock: row.total_after,
+        }),
+      0
+    );
+    return { inbound, outbound, net };
+  }, [trendChartData, trendData.data]);
+
+  const abcSummary = useMemo(() => {
+    const classes = classifyAbc(
+      products.map((product) => ({
+        id: product.id,
+        value: (statsById.get(product.id)?.outQty ?? 0) * Number(product.purchasePrice ?? 0),
+      }))
+    );
+    const summary = {
+      A: { skus: 0, value: 0 },
+      B: { skus: 0, value: 0 },
+      C: { skus: 0, value: 0 },
+    };
+    for (const product of products) {
+      const abc = classes.get(product.id) ?? "C";
+      summary[abc].skus += 1;
+      summary[abc].value += inventoryValue(product);
+    }
+    return summary;
+  }, [products, statsById]);
+
+  const topMovers = useMemo(
+    () =>
+      products
+        .map((product) => ({
+          product,
+          consumption:
+            (statsById.get(product.id)?.outQty ?? 0) *
+            Number(product.purchasePrice ?? 0),
+          qty: statsById.get(product.id)?.outQty ?? 0,
+        }))
+        .filter((row) => row.qty > 0)
+        .sort((a, b) => b.consumption - a.consumption)
+        .slice(0, 8),
+    [products, statsById]
   );
-  const totalOutbound = useMemo(
-    () => trendChartData.reduce((sum, row) => sum + row.outbound, 0),
-    [trendChartData]
+
+  const watchlist = useMemo(
+    () =>
+      products
+        .filter(isTracked)
+        .map((product) => ({
+          product,
+          health: stockHealth(product),
+          cover: daysOfCover(
+            Number(product.currentStock ?? 0),
+            averageDailyIssue(statsById.get(product.id), rangeDays)
+          ),
+        }))
+        .filter((row) => row.health === "out" || row.health === "low")
+        .sort((a, b) => (a.cover ?? 0) - (b.cover ?? 0))
+        .slice(0, 6),
+    [products, rangeDays, statsById]
+  );
+
+  const kpis = useMemo<KpiItem[]>(
+    () => [
+      {
+        id: "value",
+        label: translate(
+          "inv.dashboard.kpi.inventoryValue",
+          { ns: "inv" },
+          "Inventory value"
+        ),
+        value: formatCurrency(portfolio.value, locale),
+        hint: translate(
+          "inv.dashboard.kpi.inventoryValueHint",
+          { ns: "inv" },
+          "Estimated at purchase price"
+        ),
+        icon: <Wallet />,
+      },
+      {
+        id: "turns",
+        label: translate(
+          "inv.dashboard.kpi.turns",
+          { ns: "inv" },
+          "Turns / yr"
+        ),
+        value: formatRatio(portfolio.turns),
+        hint: translate(
+          "inv.dashboard.kpi.turnsHint",
+          { ns: "inv" },
+          "Annualised cost of goods issued over stock value"
+        ),
+        icon: <RefreshCcw />,
+      },
+      {
+        id: "skus",
+        label: translate(
+          "inv.dashboard.kpi.productCount",
+          { ns: "inv" },
+          "Products"
+        ),
+        value: formatNumber(portfolio.skus),
+        icon: <Package />,
+        onClick: () => navigate("/goods/products"),
+      },
+      {
+        id: "units",
+        label: translate(
+          "inv.dashboard.kpi.totalStock",
+          { ns: "inv" },
+          "Units on hand"
+        ),
+        value: formatNumber(portfolio.units),
+        icon: <Boxes />,
+      },
+      {
+        id: "out",
+        label: translate(
+          "inv.dashboard.kpi.outOfStock",
+          { ns: "inv" },
+          "Out of stock"
+        ),
+        value: formatNumber(portfolio.outOfStock),
+        tone: portfolio.outOfStock > 0 ? "danger" : "default",
+        icon: <CircleSlash />,
+        onClick: () => navigate("/goods/products?view=out"),
+      },
+      {
+        id: "low",
+        label: translate(
+          "inv.dashboard.kpi.lowStock",
+          { ns: "inv" },
+          "Low stock alerts"
+        ),
+        value: formatNumber(portfolio.lowStock),
+        tone: portfolio.lowStock > 0 ? "warning" : "default",
+        icon: <AlertTriangle />,
+        onClick: () => navigate("/stock/alerts"),
+      },
+    ],
+    [locale, navigate, portfolio, translate]
+  );
+
+  const secondaryKpis = useMemo<KpiItem[]>(
+    () => [
+      {
+        id: "inbound",
+        label: translate(
+          "inv.dashboard.kpi.inbound",
+          { ns: "inv" },
+          "Inbound units"
+        ),
+        value: formatNumber(totals.inbound),
+        tone: "success",
+        icon: <TrendingUp />,
+        onClick: () => navigate("/stock/movements?view=inbound"),
+      },
+      {
+        id: "outbound",
+        label: translate(
+          "inv.dashboard.kpi.outbound",
+          { ns: "inv" },
+          "Outbound units"
+        ),
+        value: formatNumber(totals.outbound),
+        tone: "danger",
+        icon: <TrendingUp />,
+        onClick: () => navigate("/stock/movements?view=outbound"),
+      },
+      {
+        id: "net",
+        label: translate(
+          "inv.dashboard.kpi.net",
+          { ns: "inv" },
+          "Net stock change"
+        ),
+        value: `${totals.net >= 0 ? "+" : "-"}${formatNumber(
+          Math.abs(totals.net)
+        )}`,
+        hint: translate(
+          "inv.dashboard.kpi.netHint",
+          { ns: "inv" },
+          "Ledger change, including signed adjustments"
+        ),
+        tone: totals.net >= 0 ? "success" : "warning",
+        icon: <Boxes />,
+      },
+      {
+        id: "dead",
+        label: translate(
+          "inv.dashboard.kpi.deadValue",
+          { ns: "inv" },
+          "Dead stock value"
+        ),
+        value: formatCurrency(portfolio.deadValue, locale),
+        hint: `${formatNumber(portfolio.deadCount)} ${translate(
+          "inv.dashboard.kpi.deadSkus",
+          { ns: "inv" },
+          "SKUs"
+        )}`,
+        tone: portfolio.deadValue > 0 ? "info" : "default",
+        icon: <Snowflake />,
+        onClick: () => navigate("/goods/products?view=dead"),
+      },
+      {
+        id: "counts",
+        label: translate(
+          "inv.dashboard.kpi.pendingCounts",
+          { ns: "inv" },
+          "Active counts"
+        ),
+        value: formatNumber(pendingCounts.data?.[0]?.pending_count ?? 0),
+        icon: <ClipboardCheck />,
+        onClick: () => navigate("/counting/counts?view=open"),
+      },
+    ],
+    [locale, navigate, pendingCounts.data, portfolio, totals, translate]
   );
 
   const pageElement = useAIPageElementHandle({
     id: "dashboard-overview",
-    title: translate("inv.dashboard.ai.title", { ns: "inv" }, "Dashboard inventory overview"),
+    title: translate(
+      "inv.dashboard.ai.title",
+      { ns: "inv" },
+      "Dashboard inventory overview"
+    ),
     kind: "detail",
     getContext: () => ({
-      productCount: baseKpis.data?.[0]?.product_count ?? 0,
-      totalStock: baseKpis.data?.[0]?.total_stock ?? 0,
-      inventoryValue: Math.round(inventoryValue * 100) / 100,
-      lowStockCount,
-      pendingCounts: pendingCounts.data?.[0]?.pending_count ?? 0,
-      totalInbound,
-      totalOutbound,
+      rangeDays,
+      portfolio: {
+        ...portfolio,
+        value: Math.round(portfolio.value * 100) / 100,
+        cogs: Math.round(portfolio.cogs * 100) / 100,
+        deadValue: Math.round(portfolio.deadValue * 100) / 100,
+      },
+      flow: totals,
+      abc: abcSummary,
       categoryDistribution: categoryDistribution.slice(0, 12),
-      trend: trendChartData.slice(-14),
+      trend: trendChartData.slice(-30),
+      topMovers: topMovers.map((row) => ({
+        sku: row.product.sku,
+        name: row.product.name,
+        issuedQty: row.qty,
+        consumptionValue: Math.round(row.consumption * 100) / 100,
+      })),
+      watchlist: watchlist.map((row) => ({
+        sku: row.product.sku,
+        name: row.product.name,
+        onHand: row.product.currentStock,
+        safety: row.product.safetyStock,
+        daysOfCover: row.cover,
+      })),
     }),
   });
 
@@ -293,6 +561,12 @@ export const DashboardPage = () => {
     autoSend: true,
   };
 
+  const abcRows = (["A", "B", "C"] as const).map((abc) => ({
+    abc,
+    ...abcSummary[abc],
+  }));
+  const abcTotalValue = abcRows.reduce((sum, row) => sum + row.value, 0);
+
   return (
     <div ref={pageElement.ref} className="animate-page-enter flex flex-col gap-6">
       <BuildStoryBanner story={BUILD_STORY} />
@@ -309,160 +583,56 @@ export const DashboardPage = () => {
             )}
           </p>
         </div>
-        <AIEmployeeShortcut
-          aiEmployee="viz"
-          size={40}
-          label={translate(
-            "inv.dashboard.ai.button",
-            { ns: "inv" },
-            "Stock analysis"
-          )}
-          tasks={[stockHealthTask]}
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1 rounded-lg border bg-card p-1">
+            {RANGE_OPTIONS.map((days) => (
+              <button
+                key={days}
+                type="button"
+                onClick={() => setRangeDays(days)}
+                className={cn(
+                  "h-7 cursor-pointer rounded-md px-2.5 text-xs font-medium transition-colors",
+                  rangeDays === days
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                )}
+              >
+                {translate(
+                  "inv.dashboard.range.days",
+                  { ns: "inv", count: days },
+                  `${days}d`
+                )}
+              </button>
+            ))}
+          </div>
+          <AIEmployeeShortcut
+            aiEmployee="viz"
+            size={40}
+            label={translate(
+              "inv.dashboard.ai.button",
+              { ns: "inv" },
+              "Stock analysis"
+            )}
+            tasks={[stockHealthTask]}
+          />
+        </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiCard
-          label={translate(
-            "inv.dashboard.kpi.productCount",
-            { ns: "inv" },
-            "Products"
-          )}
-          value={
-            baseKpis.isLoading
-              ? "…"
-              : formatNumber(baseKpis.data?.[0]?.product_count)
-          }
-          icon={<Package className="size-4" />}
-          to="/goods/products"
-        />
-        <KpiCard
-          label={translate(
-            "inv.dashboard.kpi.totalStock",
-            { ns: "inv" },
-            "Total stock"
-          )}
-          value={
-            baseKpis.isLoading
-              ? "…"
-              : formatNumber(baseKpis.data?.[0]?.total_stock)
-          }
-          hint={translate(
-            "inv.dashboard.kpi.totalStockHint",
-            { ns: "inv" },
-            "Total units on hand"
-          )}
-          icon={<Boxes className="size-4" />}
-        />
-        <KpiCard
-          label={translate(
-            "inv.dashboard.kpi.inventoryValue",
-            { ns: "inv" },
-            "Inventory value"
-          )}
-          value={productsQuery.isLoading ? "…" : formatCurrency(inventoryValue, locale)}
-          hint={translate(
-            "inv.dashboard.kpi.inventoryValueHint",
-            { ns: "inv" },
-            "Estimated at purchase price"
-          )}
-          icon={<TrendingUp className="size-4" />}
-        />
-        <KpiCard
-          label={translate(
-            "inv.dashboard.kpi.lowStock",
-            { ns: "inv" },
-            "Low stock alerts"
-          )}
-          value={productsQuery.isLoading ? "…" : formatNumber(lowStockCount)}
-          icon={<AlertTriangle className="size-4" />}
-          tone={lowStockCount > 0 ? "warning" : "default"}
-          to="/stock/alerts"
-        />
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <KpiCard
-          label={translate(
-            "inv.dashboard.kpi.pendingCounts",
-            { ns: "inv" },
-            "Active counts"
-          )}
-          value={
-            pendingCounts.isLoading
-              ? "…"
-              : formatNumber(pendingCounts.data?.[0]?.pending_count)
-          }
-          icon={<ClipboardCheck className="size-4" />}
-          to="/counting/counts"
-        />
-        <KpiCard
-          label={translate(
-            "inv.dashboard.kpi.monthInbound",
-            { ns: "inv" },
-            "Recent inbound"
-          )}
-          value={formatNumber(totalInbound)}
-          icon={<TrendingUp className="size-4" />}
-        />
-      </div>
+      <KpiBar items={kpis} loading={productsQuery.isLoading} />
+      <KpiBar
+        items={secondaryKpis}
+        loading={trendData.isLoading}
+        className="xl:grid-cols-5"
+      />
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="surface-card">
           <CardHeader>
             <CardTitle className="text-base">
               {translate(
-                "inv.dashboard.chart.categoryStock",
-                { ns: "inv" },
-                "Stock by category"
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {productsQuery.isLoading ? (
-              <Skeleton className="h-64 w-full" />
-            ) : categoryDistribution.length === 0 ? (
-              <EmptyChart
-                text={translate(
-                  "inv.dashboard.chart.empty",
-                  { ns: "inv" },
-                  "No data"
-                )}
-              />
-            ) : (
-              <ResponsiveContainer width="100%" height={280}>
-                <BarChart data={categoryDistribution} margin={{ left: -12 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
-                  <XAxis
-                    dataKey="name"
-                    tickLine={false}
-                    axisLine={false}
-                    tick={{ fontSize: 12, fill: "var(--muted-foreground)" }}
-                    interval={0}
-                    angle={-15}
-                    textAnchor="end"
-                    height={48}
-                  />
-                  <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: "var(--muted-foreground)" }} />
-                  <Tooltip
-                    cursor={{ fill: "var(--muted)", opacity: 0.5 }}
-                    contentStyle={{ borderRadius: 12, border: "1px solid var(--border)", boxShadow: "0 8px 24px -8px rgba(0,0,0,0.15)" }}
-                    formatter={(value) => [formatNumber(Number(value)), translate("inv.dashboard.chart.stockQty", { ns: "inv" }, "Stock qty")]}
-                  />
-                  <Bar dataKey="value" radius={[6, 6, 2, 2]} fill="var(--brand-1)" />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="surface-card">
-          <CardHeader>
-            <CardTitle className="text-base">
-              {translate(
                 "inv.dashboard.chart.trend",
                 { ns: "inv" },
-                "Recent in/out trend"
+                "Inbound vs outbound"
               )}
             </CardTitle>
           </CardHeader>
@@ -480,16 +650,29 @@ export const DashboardPage = () => {
             ) : (
               <ResponsiveContainer width="100%" height={280}>
                 <LineChart data={trendChartData} margin={{ left: -12 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    vertical={false}
+                    stroke="var(--border)"
+                  />
                   <XAxis
                     dataKey="date"
                     tickLine={false}
                     axisLine={false}
-                    tick={{ fontSize: 12, fill: "var(--muted-foreground)" }}
+                    tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+                    minTickGap={24}
                   />
-                  <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: "var(--muted-foreground)" }} />
+                  <YAxis
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+                  />
                   <Tooltip
-                    contentStyle={{ borderRadius: 12, border: "1px solid var(--border)", boxShadow: "0 8px 24px -8px rgba(0,0,0,0.15)" }}
+                    contentStyle={{
+                      borderRadius: 12,
+                      border: "1px solid var(--border)",
+                      boxShadow: "0 8px 24px -8px rgba(0,0,0,0.15)",
+                    }}
                     formatter={(value) => formatNumber(Number(value))}
                   />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
@@ -503,7 +686,7 @@ export const DashboardPage = () => {
                     )}
                     stroke="var(--brand-1)"
                     strokeWidth={2.5}
-                    dot={{ r: 2.5, fill: "var(--brand-1)" }}
+                    dot={{ r: 2, fill: "var(--brand-1)" }}
                     activeDot={{ r: 4.5 }}
                   />
                   <Line
@@ -516,7 +699,7 @@ export const DashboardPage = () => {
                     )}
                     stroke="var(--brand-3)"
                     strokeWidth={2.5}
-                    dot={{ r: 2.5, fill: "var(--brand-3)" }}
+                    dot={{ r: 2, fill: "var(--brand-3)" }}
                     activeDot={{ r: 4.5 }}
                   />
                 </LineChart>
@@ -524,7 +707,309 @@ export const DashboardPage = () => {
             )}
           </CardContent>
         </Card>
+
+        <Card className="surface-card">
+          <CardHeader>
+            <CardTitle className="text-base">
+              {translate(
+                "inv.dashboard.chart.categoryValue",
+                { ns: "inv" },
+                "Stock value by category"
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {productsQuery.isLoading ? (
+              <Skeleton className="h-64 w-full" />
+            ) : categoryDistribution.length === 0 ? (
+              <EmptyChart
+                text={translate(
+                  "inv.dashboard.chart.empty",
+                  { ns: "inv" },
+                  "No data"
+                )}
+              />
+            ) : (
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={categoryDistribution} margin={{ left: -4 }}>
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    vertical={false}
+                    stroke="var(--border)"
+                  />
+                  <XAxis
+                    dataKey="name"
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+                    interval={0}
+                    angle={-15}
+                    textAnchor="end"
+                    height={52}
+                  />
+                  <YAxis
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+                  />
+                  <Tooltip
+                    cursor={{ fill: "var(--muted)", opacity: 0.5 }}
+                    contentStyle={{
+                      borderRadius: 12,
+                      border: "1px solid var(--border)",
+                    }}
+                    formatter={(value) => [
+                      formatCurrency(Number(value), locale),
+                      translate(
+                        "inv.products.fields.stockValue",
+                        { ns: "inv" },
+                        "Stock value"
+                      ),
+                    ]}
+                  />
+                  <Bar
+                    dataKey="value"
+                    radius={[6, 6, 2, 2]}
+                    fill="var(--brand-1)"
+                    className="cursor-pointer"
+                    onClick={() => navigate("/goods/categories")}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
       </div>
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card className="surface-card">
+          <CardHeader>
+            <CardTitle className="text-base">
+              {translate(
+                "inv.dashboard.chart.abc",
+                { ns: "inv" },
+                "ABC composition"
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {productsQuery.isLoading ? (
+              <Skeleton className="h-40 w-full" />
+            ) : (
+              abcRows.map((row) => {
+                const share = abcTotalValue > 0 ? row.value / abcTotalValue : 0;
+                return (
+                  <div key={row.abc} className="space-y-1">
+                    <div className="flex items-baseline justify-between text-sm">
+                      <span className="font-medium">
+                        {translate(
+                          `inv.option.abc.${row.abc}`,
+                          { ns: "inv" },
+                          `Class ${row.abc}`
+                        )}
+                      </span>
+                      <span className="tabular-nums text-muted-foreground">
+                        {formatNumber(row.skus)}{" "}
+                        {translate("inv.dashboard.kpi.deadSkus", { ns: "inv" }, "SKUs")}
+                        {" · "}
+                        {formatCurrency(row.value, locale)}
+                      </span>
+                    </div>
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                      <div
+                        className={cn(
+                          "h-full rounded-full",
+                          row.abc === "A" && "bg-emerald-500",
+                          row.abc === "B" && "bg-blue-500",
+                          row.abc === "C" && "bg-neutral-400"
+                        )}
+                        style={{ width: `${Math.max(share * 100, 2)}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="surface-card">
+          <CardHeader>
+            <CardTitle className="text-base">
+              {translate(
+                "inv.dashboard.chart.topMovers",
+                { ns: "inv" },
+                "Top consumption"
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {movements.isLoading ? (
+              <Skeleton className="h-40 w-full" />
+            ) : topMovers.length === 0 ? (
+              <EmptyChart
+                text={translate(
+                  "inv.dashboard.chart.empty",
+                  { ns: "inv" },
+                  "No data"
+                )}
+              />
+            ) : (
+              <ul className="space-y-2">
+                {topMovers.map((row) => {
+                  const share =
+                    topMovers[0].consumption > 0
+                      ? row.consumption / topMovers[0].consumption
+                      : 0;
+                  return (
+                    <li key={row.product.id}>
+                      <button
+                        type="button"
+                        className="w-full cursor-pointer text-left"
+                        onClick={() =>
+                          navigate(`/goods/products/show/${row.product.id}`)
+                        }
+                      >
+                        <div className="flex items-baseline justify-between gap-2 text-sm">
+                          <span className="truncate font-medium hover:underline">
+                            {row.product.name}
+                          </span>
+                          <span className="shrink-0 tabular-nums text-muted-foreground">
+                            {formatCurrency(row.consumption, locale)}
+                          </span>
+                        </div>
+                        <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                          <div
+                            className="h-full rounded-full bg-[var(--brand-3)]"
+                            style={{ width: `${Math.max(share * 100, 3)}%` }}
+                          />
+                        </div>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="surface-card">
+          <CardHeader>
+            <CardTitle className="text-base">
+              {translate(
+                "inv.dashboard.chart.watchlist",
+                { ns: "inv" },
+                "Shortage watchlist"
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {productsQuery.isLoading ? (
+              <Skeleton className="h-40 w-full" />
+            ) : watchlist.length === 0 ? (
+              <div className="flex h-40 items-center justify-center text-center text-sm text-muted-foreground">
+                {translate(
+                  "inv.stockAlerts.empty",
+                  { ns: "inv" },
+                  "Great — no low-stock products right now."
+                )}
+              </div>
+            ) : (
+              <ul className="divide-y">
+                {watchlist.map((row) => (
+                  <li key={row.product.id} className="py-2 first:pt-0 last:pb-0">
+                    <button
+                      type="button"
+                      className="flex w-full cursor-pointer items-center justify-between gap-2 text-left"
+                      onClick={() =>
+                        navigate(`/goods/products/show/${row.product.id}`)
+                      }
+                    >
+                      <div className="min-w-0">
+                        <span className="block truncate text-sm font-medium hover:underline">
+                          {row.product.name}
+                        </span>
+                        <span className="block truncate text-xs text-muted-foreground">
+                          {formatNumber(row.product.currentStock)} /{" "}
+                          {formatNumber(row.product.safetyStock)}
+                        </span>
+                      </div>
+                      <div className="flex shrink-0 flex-col items-end gap-1">
+                        <StockHealthBadge health={row.health} locale={locale} />
+                        <CoverageLabel days={row.cover} className="text-xs" />
+                      </div>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <Link
+              to="/stock/alerts"
+              className="mt-3 block text-xs font-medium text-primary hover:underline"
+            >
+              {translate(
+                "inv.dashboard.chart.openAlerts",
+                { ns: "inv" },
+                "Open all alerts"
+              )}
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
+
+      {movementMix.length > 0 ? (
+        <Card className="surface-card">
+          <CardHeader>
+            <CardTitle className="text-base">
+              {translate(
+                "inv.dashboard.chart.movementMix",
+                { ns: "inv" },
+                "Movement mix by type"
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={movementMix} layout="vertical" margin={{ left: 24 }}>
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  horizontal={false}
+                  stroke="var(--border)"
+                />
+                <XAxis
+                  type="number"
+                  tickLine={false}
+                  axisLine={false}
+                  tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+                />
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  width={110}
+                  tickLine={false}
+                  axisLine={false}
+                  tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+                />
+                <Tooltip
+                  cursor={{ fill: "var(--muted)", opacity: 0.5 }}
+                  contentStyle={{
+                    borderRadius: 12,
+                    border: "1px solid var(--border)",
+                  }}
+                  formatter={(value) => formatNumber(Number(value))}
+                />
+                <Bar
+                  dataKey="value"
+                  radius={[2, 6, 6, 2]}
+                  fill="var(--brand-2)"
+                  className="cursor-pointer"
+                  onClick={() => navigate("/stock/movements")}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   );
 };

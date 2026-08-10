@@ -6,7 +6,7 @@ import { InventoryCountShow } from "./show";
 
 export function InventoryCountListRoute() {
   return (
-    <CanAccess resource="inventory_counts" action="list" fallback={<AccessDenied />}>
+    <CanAccess resource="scm_inventory_counts" action="list" fallback={<AccessDenied />}>
       <InventoryCountList />
     </CanAccess>
   );
@@ -14,7 +14,7 @@ export function InventoryCountListRoute() {
 
 export function InventoryCountCreateRoute() {
   return (
-    <CanAccess resource="inventory_counts" action="create" fallback={<AccessDenied />}>
+    <CanAccess resource="scm_inventory_counts" action="create" fallback={<AccessDenied />}>
       <InventoryCountCreate />
     </CanAccess>
   );
@@ -22,7 +22,7 @@ export function InventoryCountCreateRoute() {
 
 export function InventoryCountShowRoute() {
   return (
-    <CanAccess resource="inventory_counts" action="view" fallback={<AccessDenied />}>
+    <CanAccess resource="scm_inventory_counts" action="view" fallback={<AccessDenied />}>
       <InventoryCountShow />
     </CanAccess>
   );

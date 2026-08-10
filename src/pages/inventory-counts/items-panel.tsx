@@ -1,16 +1,13 @@
-import {
-  useDataProvider,
-  useGetLocale,
-  useList,
-  useTranslate,
-} from "@refinedev/core";
+import { useDataProvider, useGetLocale, useTranslate } from "@refinedev/core";
+import { CheckCheck, Loader2 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
-import { Loader2 } from "lucide-react";
 
+import { ExportCsvButton, TableSearchInput } from "@/components/inventory/list-toolbar";
+import { OptionBadge } from "@/components/inventory/option-badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -19,19 +16,39 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { OptionBadge } from "@/components/inventory/option-badge";
-import { formatNumber } from "@/lib/inventory/format";
 import { ITEM_STATUS, optionLabel, PRODUCT_UNITS } from "@/lib/inventory/constants";
+import { exportCsv } from "@/lib/inventory/csv";
+import { formatCurrency, formatNumber } from "@/lib/inventory/format";
 import type { CountItemRecord, InventoryCountRecord } from "@/lib/inventory/types";
-import { completeCount, saveCountItem } from "./actions";
 import { cn } from "@/lib/utils";
+import { acceptSystemQuantities, saveCountItem } from "./actions";
+
+type CountItemWithProduct = CountItemRecord & {
+  product?: {
+    id: number;
+    name?: string | null;
+    sku?: string | null;
+    unit?: string | null;
+    purchasePrice?: number | null;
+  } | null;
+};
+
+type LineFilter = "all" | "pending" | "counted" | "variance";
 
 export function CountItemsPanel({
   count,
-  onChanged,
+  items,
+  isLoading,
+  isError,
+  onRefetch,
+  editable,
 }: {
   count: InventoryCountRecord;
-  onChanged: () => void;
+  items: CountItemWithProduct[];
+  isLoading?: boolean;
+  isError?: boolean;
+  onRefetch: () => Promise<void> | void;
+  editable: boolean;
 }) {
   const translate = useTranslate();
   const getLocale = useGetLocale();
@@ -40,157 +57,200 @@ export function CountItemsPanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [editing, setEditing] = useState<Record<string, string>>({});
+  const [filter, setFilter] = useState<LineFilter>("all");
+  const [search, setSearch] = useState("");
 
-  const { result: itemsResult, query: itemsQuery } = useList<CountItemRecord>({
-    resource: "scm_inventory_count_items",
-    pagination: { mode: "server", currentPage: 1, pageSize: 200 },
-    filters: count.id
-      ? [{ field: "count_id", operator: "eq", value: count.id }]
-      : undefined,
-    sorters: [{ field: "id", order: "asc" }],
-    errorNotification: false,
-    queryOptions: { enabled: Boolean(count.id), retry: false },
-    meta: { appends: ["product"] },
-  });
-  const items = itemsResult?.data ?? [];
-  const { refetch } = itemsQuery;
+  const diffOf = useCallback((item: CountItemWithProduct) => {
+    const system = Number(item.systemStock ?? 0);
+    if (item.countedStock === null || item.countedStock === undefined) return 0;
+    return Number(item.countedStock) - system;
+  }, []);
 
-  const isEditable = ["draft", "in_progress"].includes(count.status ?? "");
-  const countedItems = useMemo(
-    () => items.filter((item) => item.status === "counted").length,
-    [items]
-  );
-  const diffItems = useMemo(
-    () => items.filter((item) => Number(item.diffStock ?? 0) !== 0).length,
+  const visibleItems = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return items.filter((item) => {
+      if (filter === "pending" && item.status !== "pending") return false;
+      if (filter === "counted" && item.status === "pending") return false;
+      if (filter === "variance" && diffOf(item) === 0) return false;
+      if (!term) return true;
+      return [item.product?.name, item.product?.sku]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(term));
+    });
+  }, [diffOf, filter, items, search]);
+
+  const pendingCount = useMemo(
+    () => items.filter((item) => item.status === "pending").length,
     [items]
   );
 
   const handleSaveItem = useCallback(
-    async (item: CountItemRecord, value: string) => {
+    async (item: CountItemWithProduct, value: string) => {
       const parsed = value.trim() === "" ? null : Number(value);
       if (parsed === null || Number.isNaN(parsed)) {
-        setEditing((prev) => ({ ...prev, [String(item.id)]: "" }));
+        setEditing((previous) => ({ ...previous, [String(item.id)]: "" }));
         return;
       }
       try {
         setBusy(true);
         setError(undefined);
         await saveCountItem(dataProvider, item.id, parsed);
-        await refetch();
+        await onRefetch();
       } catch (reason) {
         setError(
           reason instanceof Error
             ? reason.message
-            : translate(
-                "inv.counts.items.saveError",
-                { ns: "inv" },
-                "Failed to save"
-              )
+            : translate("inv.counts.items.saveError", { ns: "inv" }, "Failed to save")
         );
       } finally {
         setBusy(false);
-        setEditing((prev) => {
-          const next = { ...prev };
+        setEditing((previous) => {
+          const next = { ...previous };
           delete next[String(item.id)];
           return next;
         });
       }
     },
-    [dataProvider, refetch, translate]
+    [dataProvider, onRefetch, translate]
   );
 
-  const handleComplete = useCallback(async () => {
-    setError(undefined);
-    setBusy(true);
+  const handleAcceptSystem = useCallback(async () => {
+    const confirmed = window.confirm(
+      translate(
+        "inv.counts.items.acceptSystemConfirm",
+        { ns: "inv", count: pendingCount },
+        `Record the system quantity for the ${pendingCount} open line(s)?`
+      )
+    );
+    if (!confirmed) return;
     try {
-      await completeCount(dataProvider, count.id);
-      await refetch();
-      onChanged();
+      setBusy(true);
+      setError(undefined);
+      await acceptSystemQuantities(dataProvider, items);
+      await onRefetch();
     } catch (reason) {
       setError(
         reason instanceof Error
           ? reason.message
-          : translate(
-              "inv.counts.items.completeError",
-              { ns: "inv" },
-              "Failed to complete the count"
-            )
+          : translate("inv.counts.items.saveError", { ns: "inv" }, "Failed to save")
       );
     } finally {
       setBusy(false);
     }
-  }, [count.id, dataProvider, locale, onChanged, refetch, translate]);
+  }, [dataProvider, items, onRefetch, pendingCount, translate]);
 
-  const handleCancel = useCallback(async () => {
-    setError(undefined);
-    setBusy(true);
-    try {
-      await dataProvider.update({
-        resource: "scm_inventory_counts",
-        id: count.id,
-        variables: { status: "cancelled" },
-      });
-      await refetch();
-      onChanged();
-    } catch (reason) {
-      setError(
-        reason instanceof Error
-          ? reason.message
-          : translate(
-              "inv.counts.items.cancelError",
-              { ns: "inv" },
-              "Failed to cancel the count"
-            )
-      );
-    } finally {
-      setBusy(false);
-    }
-  }, [count.id, dataProvider, onChanged, refetch, translate]);
+  const filters: Array<{ id: LineFilter; label: string; count: number }> = [
+    {
+      id: "all",
+      label: translate("inv.counts.items.filter.all", { ns: "inv" }, "All lines"),
+      count: items.length,
+    },
+    {
+      id: "pending",
+      label: translate("inv.counts.items.filter.pending", { ns: "inv" }, "Open"),
+      count: pendingCount,
+    },
+    {
+      id: "counted",
+      label: translate(
+        "inv.counts.items.filter.counted",
+        { ns: "inv" },
+        "Counted"
+      ),
+      count: items.length - pendingCount,
+    },
+    {
+      id: "variance",
+      label: translate(
+        "inv.counts.items.filter.variance",
+        { ns: "inv" },
+        "Variances"
+      ),
+      count: items.filter((item) => diffOf(item) !== 0).length,
+    },
+  ];
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <section className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-sm font-medium">
+          {translate("inv.counts.items.title", { ns: "inv" }, "Count lines")}
+        </h3>
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="secondary" className="gap-1.5">
-            {translate("inv.counts.items.total", { ns: "inv" }, "Total")}{" "}
-            {formatNumber(items.length)} items
-          </Badge>
-          <Badge variant="outline" className="gap-1.5 text-blue-700 dark:text-blue-300">
-            {translate("inv.counts.items.counted", { ns: "inv" }, "Counted")}{" "}
-            {formatNumber(countedItems)}
-          </Badge>
-          <Badge variant="outline" className="gap-1.5 text-amber-700 dark:text-amber-300">
-            {translate("inv.counts.items.diff", { ns: "inv" }, "Diff")}{" "}
-            {formatNumber(diffItems)}
-          </Badge>
-        </div>
-
-        {isEditable ? (
-          <div className="flex items-center gap-2">
+          {editable && pendingCount > 0 ? (
             <Button
               type="button"
               variant="outline"
               size="sm"
+              className="h-8 gap-1.5 text-xs"
               disabled={busy}
-              onClick={() => void handleCancel()}
+              onClick={() => void handleAcceptSystem()}
             >
-              {translate("inv.counts.items.cancelCount", { ns: "inv" }, "Cancel count")}
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              disabled={busy}
-              onClick={() => void handleComplete()}
-            >
-              {busy ? <Loader2 className="size-4 animate-spin" /> : null}
+              {busy ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <CheckCheck className="size-3.5" />
+              )}
               {translate(
-                "inv.counts.items.completeCount",
-                { ns: "inv" },
-                "Complete count and adjust stock"
+                "inv.counts.items.acceptSystem",
+                { ns: "inv", count: pendingCount },
+                `Accept system qty (${pendingCount})`
               )}
             </Button>
-          </div>
-        ) : null}
+          ) : null}
+          <ExportCsvButton
+            disabled={items.length === 0}
+            onExport={() =>
+              exportCsv(`count-${count.countNo ?? count.id}`, visibleItems, [
+                { header: "SKU", value: (row) => row.product?.sku ?? "" },
+                { header: "Product", value: (row) => row.product?.name ?? "" },
+                { header: "System stock", value: (row) => row.systemStock ?? 0 },
+                { header: "Counted", value: (row) => row.countedStock ?? "" },
+                { header: "Variance", value: (row) => diffOf(row) },
+                { header: "Status", value: (row) => row.status ?? "" },
+                { header: "Notes", value: (row) => row.remark ?? "" },
+              ])
+            }
+          />
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap gap-1">
+          {filters.map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              onClick={() => setFilter(option.id)}
+              className={cn(
+                "flex h-7 cursor-pointer items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium transition-colors",
+                filter === option.id
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "bg-card text-muted-foreground hover:bg-accent"
+              )}
+            >
+              {option.label}
+              <span
+                className={cn(
+                  "rounded px-1 text-[10px] tabular-nums",
+                  filter === option.id ? "bg-primary-foreground/20" : "bg-muted"
+                )}
+              >
+                {option.count}
+              </span>
+            </button>
+          ))}
+        </div>
+        <TableSearchInput
+          value={search}
+          onChange={setSearch}
+          placeholder={translate(
+            "inv.counts.items.searchPlaceholder",
+            { ns: "inv" },
+            "Search product or SKU"
+          )}
+          className="ml-auto w-full sm:w-60"
+        />
       </div>
 
       {error ? (
@@ -202,11 +262,9 @@ export function CountItemsPanel({
         </Alert>
       ) : null}
 
-      {itemsQuery.isLoading ? (
-        <div className="flex h-40 items-center justify-center">
-          <Loader2 className="size-6 animate-spin text-primary" />
-        </div>
-      ) : itemsQuery.isError ? (
+      {isLoading ? (
+        <Skeleton className="h-48 w-full rounded-xl" />
+      ) : isError ? (
         <Alert variant="destructive">
           <AlertTitle>
             {translate(
@@ -215,24 +273,41 @@ export function CountItemsPanel({
               "Unable to load count items"
             )}
           </AlertTitle>
+          <AlertDescription>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="mt-2 h-7 text-xs"
+              onClick={() => void onRefetch()}
+            >
+              {translate("inv.common.retry", { ns: "inv" }, "Retry")}
+            </Button>
+          </AlertDescription>
         </Alert>
-      ) : items.length === 0 ? (
+      ) : visibleItems.length === 0 ? (
         <div className="rounded-xl border border-dashed py-12 text-center text-sm text-muted-foreground">
-          {translate(
-            "inv.counts.items.empty",
-            { ns: "inv" },
-            "No items yet. Create with a scope to generate them."
-          )}
+          {items.length === 0
+            ? translate(
+                "inv.counts.items.empty",
+                { ns: "inv" },
+                "No lines yet. Create a count with a scope to generate them."
+              )
+            : translate(
+                "inv.counts.items.emptyFilter",
+                { ns: "inv" },
+                "No lines match this filter."
+              )}
         </div>
       ) : (
         <div className="overflow-hidden rounded-xl border bg-card">
           <Table style={{ tableLayout: "fixed", width: "100%" }}>
             <TableHeader className="bg-muted/45">
               <TableRow>
-                <TableHead className="w-14">
+                <TableHead className="w-12">
                   {translate("inv.counts.items.col.no", { ns: "inv" }, "No.")}
                 </TableHead>
-                <TableHead className="w-[38%] min-w-48">
+                <TableHead className="w-[30%] min-w-44">
                   {translate(
                     "inv.counts.items.col.product",
                     { ns: "inv" },
@@ -243,21 +318,24 @@ export function CountItemsPanel({
                   {translate(
                     "inv.counts.items.col.systemStock",
                     { ns: "inv" },
-                    "System stock"
+                    "System"
                   )}
                 </TableHead>
-                <TableHead className="w-36">
+                <TableHead className="w-32">
                   {translate(
                     "inv.counts.items.col.countedStock",
                     { ns: "inv" },
-                    "Counted qty"
+                    "Counted"
                   )}
                 </TableHead>
                 <TableHead className="w-20">
+                  {translate("inv.counts.items.col.diffStock", { ns: "inv" }, "Var.")}
+                </TableHead>
+                <TableHead className="w-28">
                   {translate(
-                    "inv.counts.items.col.diffStock",
+                    "inv.counts.items.col.diffValue",
                     { ns: "inv" },
-                    "Diff"
+                    "Value impact"
                   )}
                 </TableHead>
                 <TableHead className="w-24">
@@ -266,17 +344,22 @@ export function CountItemsPanel({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {items.map((item, index) => {
+              {visibleItems.map((item, index) => {
                 const systemStock = Number(item.systemStock ?? 0);
-                const countedStock = Number(item.countedStock ?? item.systemStock ?? 0);
-                const diff = countedStock - systemStock;
+                const diff = diffOf(item);
                 const editValue =
                   editing[String(item.id)] ??
                   (item.countedStock === null || item.countedStock === undefined
                     ? ""
                     : String(item.countedStock));
                 return (
-                  <TableRow key={item.id}>
+                  <TableRow
+                    key={item.id}
+                    className={cn(
+                      diff !== 0 &&
+                        "bg-amber-50/60 hover:bg-amber-50 dark:bg-amber-950/20"
+                    )}
+                  >
                     <TableCell className="text-muted-foreground">
                       {index + 1}
                     </TableCell>
@@ -293,9 +376,11 @@ export function CountItemsPanel({
                         </span>
                       </div>
                     </TableCell>
-                    <TableCell>{formatNumber(systemStock)}</TableCell>
+                    <TableCell className="tabular-nums">
+                      {formatNumber(systemStock)}
+                    </TableCell>
                     <TableCell>
-                      {isEditable ? (
+                      {editable ? (
                         <Input
                           type="number"
                           step="1"
@@ -304,14 +389,16 @@ export function CountItemsPanel({
                           value={editValue}
                           disabled={busy}
                           onChange={(event) =>
-                            setEditing((prev) => ({
-                              ...prev,
+                            setEditing((previous) => ({
+                              ...previous,
                               [String(item.id)]: event.target.value,
                             }))
                           }
-                          onBlur={() =>
-                            void handleSaveItem(item, editing[String(item.id)] ?? "")
-                          }
+                          onBlur={() => {
+                            const pending = editing[String(item.id)];
+                            if (pending === undefined) return;
+                            void handleSaveItem(item, pending);
+                          }}
                           onKeyDown={(event) => {
                             if (event.key === "Enter") {
                               (event.target as HTMLInputElement).blur();
@@ -319,26 +406,36 @@ export function CountItemsPanel({
                           }}
                         />
                       ) : (
-                        <span
-                          className={cn(
-                            diff === 0
-                              ? "font-medium"
-                              : "font-semibold text-amber-600 dark:text-amber-400"
-                          )}
-                        >
-                          {formatNumber(countedStock)}
+                        <span className="tabular-nums">
+                          {item.countedStock === null ||
+                          item.countedStock === undefined
+                            ? "-"
+                            : formatNumber(item.countedStock)}
                         </span>
                       )}
                     </TableCell>
                     <TableCell
                       className={cn(
-                        "font-medium",
+                        "font-medium tabular-nums",
                         diff > 0 && "text-emerald-600 dark:text-emerald-400",
                         diff < 0 && "text-red-600 dark:text-red-400"
                       )}
                     >
                       {diff > 0 ? "+" : ""}
                       {formatNumber(diff)}
+                    </TableCell>
+                    <TableCell
+                      className={cn(
+                        "tabular-nums",
+                        diff < 0 && "text-red-600 dark:text-red-400"
+                      )}
+                    >
+                      {diff === 0
+                        ? "-"
+                        : formatCurrency(
+                            diff * Number(item.product?.purchasePrice ?? 0),
+                            locale
+                          )}
                     </TableCell>
                     <TableCell>
                       <OptionBadge
@@ -354,6 +451,6 @@ export function CountItemsPanel({
           </Table>
         </div>
       )}
-    </div>
+    </section>
   );
 }

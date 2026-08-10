@@ -7,7 +7,7 @@ import { StockMovementShow } from "./show";
 
 export function StockMovementListRoute() {
   return (
-    <CanAccess resource="stock_movements" action="list" fallback={<AccessDenied />}>
+    <CanAccess resource="scm_stock_movements" action="list" fallback={<AccessDenied />}>
       <StockMovementList />
     </CanAccess>
   );
@@ -15,7 +15,7 @@ export function StockMovementListRoute() {
 
 export function StockMovementCreateRoute() {
   return (
-    <CanAccess resource="stock_movements" action="create" fallback={<AccessDenied />}>
+    <CanAccess resource="scm_stock_movements" action="create" fallback={<AccessDenied />}>
       <StockMovementCreate />
     </CanAccess>
   );
@@ -23,7 +23,7 @@ export function StockMovementCreateRoute() {
 
 export function StockMovementShowRoute() {
   return (
-    <CanAccess resource="stock_movements" action="view" fallback={<AccessDenied />}>
+    <CanAccess resource="scm_stock_movements" action="view" fallback={<AccessDenied />}>
       <StockMovementShow />
     </CanAccess>
   );
@@ -31,7 +31,7 @@ export function StockMovementShowRoute() {
 
 export function StockMovementProductShowRoute() {
   return (
-    <CanAccess resource="products" action="view" fallback={<AccessDenied />}>
+    <CanAccess resource="scm_products" action="view" fallback={<AccessDenied />}>
       <StockMovementProductShow />
     </CanAccess>
   );
@@ -39,7 +39,7 @@ export function StockMovementProductShowRoute() {
 
 export function StockMovementProductEditRoute() {
   return (
-    <CanAccess resource="products" action="update" fallback={<AccessDenied />}>
+    <CanAccess resource="scm_products" action="update" fallback={<AccessDenied />}>
       <StockMovementProductEdit />
     </CanAccess>
   );

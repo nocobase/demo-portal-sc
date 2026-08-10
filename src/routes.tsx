@@ -1,5 +1,6 @@
 import {
   ClipboardCheck,
+  ClipboardList,
   LayoutDashboard,
   Package,
   PackageCheck,
@@ -244,6 +245,42 @@ export const appRoutes = defineAppRoutes([
                   ),
               },
             ],
+          },
+        ],
+      },
+      {
+        name: "scm_purchase_orders",
+        path: "purchase-orders",
+        lazy: () =>
+          import("@/pages/purchase-orders/route-components").then(
+            ({ PurchaseOrderListRoute }) =>
+              routeComponent(PurchaseOrderListRoute)
+          ),
+        resource: {
+          meta: {
+            label: "Purchase Orders",
+            i18nKey: "inv.nav.purchaseOrders",
+            i18nOptions: { ns: "inv" },
+            singularLabel: "Purchase Order",
+            i18nSingularKey: "inv.nav.purchaseOrder",
+            descriptionI18nKey: "inv.nav.purchaseOrders.description",
+            icon: <ClipboardList />,
+            canCreate: false,
+            canDelete: false,
+            acl: { type: "collection" },
+            priority: 13,
+          },
+        },
+        children: [
+          {
+            name: "purchase_orders.show",
+            path: "show/:id",
+            resourceAction: "show",
+            lazy: () =>
+              import("@/pages/purchase-orders/route-components").then(
+                ({ PurchaseOrderShowRoute }) =>
+                  routeComponent(PurchaseOrderShowRoute)
+              ),
           },
         ],
       },

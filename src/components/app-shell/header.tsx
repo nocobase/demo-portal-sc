@@ -26,6 +26,7 @@ import { cn } from "@/lib/utils";
 import { Brand } from "@/components/app-shell/brand";
 import { TopNavigation } from "@/components/app-shell/top-nav";
 import { extensionUserMenuItems } from "@/app/extensions";
+import { GlobalSearch } from "@/components/inventory/global-search";
 
 const pluginSettingsResource = {
   name: "plugin-settings",
@@ -71,6 +72,7 @@ export const Header = () => {
           <TopNavigation />
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
+          <GlobalSearch />
           <PortalInfo />
           <SettingsLink />
           <ThemeToggle />

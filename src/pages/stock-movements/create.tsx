@@ -1,6 +1,7 @@
 import { type HttpError, useDataProvider, useTranslate } from "@refinedev/core";
 import { useForm } from "@refinedev/react-hook-form";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useSearchParams } from "react-router";
 
 import { Button } from "@/components/ui/button";
 import { Form } from "@/components/ui/form";
@@ -16,17 +17,8 @@ import {
   MovementFormFields,
   type MovementFormValues,
 } from "./form-fields";
-import {
-  STOCK_IN_TYPES,
-  STOCK_OUT_TYPES,
-} from "@/lib/inventory/constants";
-import type { ProductRecord, StockMovementRecord } from "@/lib/inventory/types";
-
-const movementDirection = (type: string, quantity: number) => {
-  if (STOCK_IN_TYPES.has(type)) return 1;
-  if (STOCK_OUT_TYPES.has(type)) return -1;
-  return quantity >= 0 ? 1 : -1;
-};
+import { postStockMovement } from "@/lib/inventory/stock-movement";
+import type { StockMovementRecord } from "@/lib/inventory/types";
 
 export const StockMovementCreate = () => {
   const translate = useTranslate();
@@ -61,6 +53,15 @@ function MovementCreateForm() {
   const close = useRouteSurfaceClose();
   const dataProvider = useDataProvider()();
   const [submitError, setSubmitError] = useState<string>();
+  const [searchParams] = useSearchParams();
+
+  // Opened from a product row or detail drawer, the movement starts on that SKU.
+  const defaultValues = useMemo(() => {
+    const productId = Number(searchParams.get("productId"));
+    return productId
+      ? { ...movementFormDefaultValues, productId }
+      : movementFormDefaultValues;
+  }, [searchParams]);
 
   const {
     refineCore: { onFinish },
@@ -71,7 +72,7 @@ function MovementCreateForm() {
       action: "create",
       redirect: false,
     },
-    defaultValues: movementFormDefaultValues,
+    defaultValues,
   });
 
   void onFinish;
@@ -84,34 +85,14 @@ function MovementCreateForm() {
       const quantity = Number(values.quantity ?? 0);
       if (!productId) return;
 
-      const productResponse = await dataProvider.getOne<ProductRecord>({
-        resource: "scm_products",
-        id: productId,
-      });
-      const currentStock = Number(productResponse.data.currentStock ?? 0);
-      const direction = movementDirection(type, quantity);
-      const beforeStock = currentStock;
-      const afterStock = Math.max(0, currentStock + direction * quantity);
-
-      await dataProvider.create<StockMovementRecord>({
-        resource: "scm_stock_movements",
-        variables: {
-          product: { id: productId },
-          type,
-          quantity,
-          beforeStock,
-          afterStock,
-          referenceNo: values.referenceNo || null,
-          handler: values.handler || null,
-          occurredAt: values.occurredAt || new Date().toISOString(),
-          remark: values.remark || null,
-        },
-      });
-
-      await dataProvider.update({
-        resource: "scm_products",
-        id: productId,
-        variables: { currentStock: afterStock },
+      await postStockMovement(dataProvider, {
+        productId,
+        type,
+        quantity,
+        adjustmentDirection: values.adjustmentDirection,
+        referenceNo: values.referenceNo,
+        handler: values.handler,
+        remark: values.remark,
       });
 
       close({ skipBeforeClose: true });

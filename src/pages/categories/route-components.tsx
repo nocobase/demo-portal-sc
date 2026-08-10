@@ -7,7 +7,7 @@ import { CategoryShow } from "./show";
 
 export function CategoryListRoute() {
   return (
-    <CanAccess resource="product_categories" action="list" fallback={<AccessDenied />}>
+    <CanAccess resource="scm_product_categories" action="list" fallback={<AccessDenied />}>
       <CategoryList />
     </CanAccess>
   );
@@ -15,7 +15,7 @@ export function CategoryListRoute() {
 
 export function CategoryCreateRoute() {
   return (
-    <CanAccess resource="product_categories" action="create" fallback={<AccessDenied />}>
+    <CanAccess resource="scm_product_categories" action="create" fallback={<AccessDenied />}>
       <CategoryCreate />
     </CanAccess>
   );
@@ -23,7 +23,7 @@ export function CategoryCreateRoute() {
 
 export function CategoryEditRoute() {
   return (
-    <CanAccess resource="product_categories" action="update" fallback={<AccessDenied />}>
+    <CanAccess resource="scm_product_categories" action="update" fallback={<AccessDenied />}>
       <CategoryEdit />
     </CanAccess>
   );
@@ -31,7 +31,7 @@ export function CategoryEditRoute() {
 
 export function CategoryShowRoute() {
   return (
-    <CanAccess resource="product_categories" action="view" fallback={<AccessDenied />}>
+    <CanAccess resource="scm_product_categories" action="view" fallback={<AccessDenied />}>
       <CategoryShow />
     </CanAccess>
   );
@@ -39,7 +39,7 @@ export function CategoryShowRoute() {
 
 export function CategoryShowEditRoute() {
   return (
-    <CanAccess resource="product_categories" action="update" fallback={<AccessDenied />}>
+    <CanAccess resource="scm_product_categories" action="update" fallback={<AccessDenied />}>
       <CategoryEdit returnTo="show" />
     </CanAccess>
   );

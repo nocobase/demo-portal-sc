@@ -39,7 +39,7 @@ export function SupplierShowRoute() {
 
 export function SupplierShowEditRoute() {
   return (
-    <CanAccess resource="suppliers" action="update" fallback={<AccessDenied />}>
+    <CanAccess resource="scm_suppliers" action="update" fallback={<AccessDenied />}>
       <SupplierEdit returnTo="show" />
     </CanAccess>
   );

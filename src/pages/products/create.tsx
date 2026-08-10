@@ -113,13 +113,17 @@ function ProductCreateForm() {
     <Form {...form}>
       <form
         ref={aiFormRef}
-        onSubmit={form.handleSubmit((values) =>
-          onFinish(productFormValuesToRecord(values) as unknown as ProductFormValues)
-        )}
+        onSubmit={form.handleSubmit((values) => {
+          const record = productFormValuesToRecord(values);
+          return onFinish({
+            ...record,
+            currentStock: 0,
+          } as unknown as ProductFormValues);
+        })}
         className="flex min-h-0 flex-1 flex-col"
       >
         <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-5 py-5 [&_[data-slot=input]]:h-10 [&_[data-slot=select-trigger]]:h-10 [&_[data-slot=textarea]]:min-h-32">
-          <ProductFormFields form={form} translate={translate} />
+          <ProductFormFields form={form} translate={translate} readOnlyStock />
         </div>
         <RouteDrawerFooter className="flex-row justify-end">
           <Button type="button" variant="outline" onClick={() => close()}>

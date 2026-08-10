@@ -159,6 +159,7 @@ function ProductEditForm({ id }: { id?: string }) {
             form={form}
             translate={translate}
             readOnlyStock
+            recordId={id}
           />
         </div>
         <RouteDrawerFooter className="flex-row justify-end">

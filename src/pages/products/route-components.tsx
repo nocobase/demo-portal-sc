@@ -39,7 +39,7 @@ export function ProductShowRoute() {
 
 export function ProductShowEditRoute() {
   return (
-    <CanAccess resource="products" action="update" fallback={<AccessDenied />}>
+    <CanAccess resource="scm_products" action="update" fallback={<AccessDenied />}>
       <ProductEdit returnTo="show" />
     </CanAccess>
   );
@@ -47,7 +47,7 @@ export function ProductShowEditRoute() {
 
 export function StockMovementProductRoute() {
   return (
-    <CanAccess resource="products" action="view" fallback={<AccessDenied />}>
+    <CanAccess resource="scm_products" action="view" fallback={<AccessDenied />}>
       <ProductShow closeTo="/stock/movements" />
     </CanAccess>
   );
@@ -55,7 +55,7 @@ export function StockMovementProductRoute() {
 
 export function StockMovementProductEditRoute() {
   return (
-    <CanAccess resource="products" action="update" fallback={<AccessDenied />}>
+    <CanAccess resource="scm_products" action="update" fallback={<AccessDenied />}>
       <ProductEdit returnTo="show" showCloseToBase="/stock/movements/products" />
     </CanAccess>
   );
@@ -63,7 +63,7 @@ export function StockMovementProductEditRoute() {
 
 export function StockAlertProductRoute() {
   return (
-    <CanAccess resource="products" action="view" fallback={<AccessDenied />}>
+    <CanAccess resource="scm_products" action="view" fallback={<AccessDenied />}>
       <ProductShow closeTo="/stock/alerts" />
     </CanAccess>
   );
@@ -71,7 +71,7 @@ export function StockAlertProductRoute() {
 
 export function StockAlertProductEditRoute() {
   return (
-    <CanAccess resource="products" action="update" fallback={<AccessDenied />}>
+    <CanAccess resource="scm_products" action="update" fallback={<AccessDenied />}>
       <ProductEdit returnTo="show" showCloseToBase="/stock/alerts/products" />
     </CanAccess>
   );
