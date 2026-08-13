@@ -105,7 +105,10 @@ function ComboboxContent({
         align={align}
         alignOffset={alignOffset}
         anchor={anchor}
-        className="isolate z-50"
+        // Route drawers and dialogs wrap their overlay in a pointer-events-none
+        // container and let the panel opt back in; this popup is portalled into
+        // that container too, so it has to opt back in as well.
+        className="pointer-events-auto isolate z-50"
       >
         <ComboboxPrimitive.Popup
           data-slot="combobox-content"

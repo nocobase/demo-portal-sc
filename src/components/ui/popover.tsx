@@ -32,7 +32,10 @@ function PopoverContent({
         alignOffset={alignOffset}
         side={side}
         sideOffset={sideOffset}
-        className={cn("isolate z-50", positionerClassName)}
+        // Route drawers and dialogs wrap their overlay in a pointer-events-none
+        // container and let the panel opt back in; this popup is portalled into
+        // that container too, so it has to opt back in as well.
+        className={cn("pointer-events-auto isolate z-50", positionerClassName)}
       >
         <PopoverPrimitive.Popup
           data-slot="popover-content"

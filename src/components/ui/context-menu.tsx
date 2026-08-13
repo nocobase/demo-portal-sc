@@ -44,7 +44,10 @@ function ContextMenuContent({
   return (
     <ContextMenuPrimitive.Portal>
       <ContextMenuPrimitive.Positioner
-        className="isolate z-50 outline-none"
+        // Route drawers and dialogs wrap their overlay in a pointer-events-none
+        // container and let the panel opt back in; this popup is portalled into
+        // that container too, so it has to opt back in as well.
+        className="pointer-events-auto isolate z-50 outline-none"
         align={align}
         alignOffset={alignOffset}
         side={side}
